@@ -1,0 +1,27 @@
+# Системные
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Редакторы
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Логи
+*.log
+npm-debug.log*
+
+# Node
+node_modules/
+dist/
+build/
+
+# Локальные файлы с секретами (на будущее)
+.env
+.env.local
+*.key
+*.pem
+secrets.json

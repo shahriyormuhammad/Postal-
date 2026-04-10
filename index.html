@@ -1,0 +1,4184 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Postal · Ближайший склад каждому заказу</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- Tesseract.js подгружается лениво, при первом клике «Распознать» в блоке «Распознать накладную» -->
+<style>
+  :root {
+    --bg: #f4f5f8;
+    --surface: #ffffff;
+    --surface-2: #fafbfc;
+    --surface-3: #eef0f4;
+    --border: #e5e7eb;
+    --border-2: #d1d5db;
+    --text: #1a1d26;
+    --text-dim: #6b7280;
+    --text-soft: #9ca3af;
+    --accent: #4f6dfa;
+    --accent-2: #3d56d8;
+    --accent-soft: #eef1ff;
+    --accent-border: #d4daff;
+    --danger: #b03a28;
+    --danger-soft: #fef0ed;
+    --danger-border: #f0c8c0;
+    --warn: #b5700c;
+    --warn-soft: #fff4e5;
+    --warn-border: #f0dfc0;
+    --ok: #1e6b3e;
+    --ok-soft: #e8f3ec;
+    --ok-border: #c6e4d0;
+    --radius: 10px;
+    --radius-lg: 14px;
+    --radius-sm: 6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Manrope', -apple-system, system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 1280px; margin: 0 auto; padding: 28px 24px 80px; }
+
+  /* Header */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 22px; margin-bottom: 22px;
+    flex-wrap: wrap; gap: 16px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-mark {
+    width: 42px; height: 42px;
+    border-radius: 11px 11px 11px 3px;
+    background: var(--accent); color: #fff;
+    display: grid; place-items: center;
+    font-weight: 500; font-size: 19px;
+    letter-spacing: -0.02em;
+    position: relative;
+  }
+  .brand-mark::after {
+    content: ''; position: absolute;
+    top: 6px; right: 6px; width: 5px; height: 5px;
+    border-radius: 50%; background: #fff; opacity: 0.5;
+  }
+  .brand h1 {
+    font-size: 17px; font-weight: 500; letter-spacing: -0.01em; color: var(--text);
+  }
+  .brand .sub { font-size: 12px; color: var(--text-dim); margin-top: 1px; }
+  .mode-badge {
+    padding: 7px 14px; background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: 100px; font-size: 12px; color: var(--text-dim); font-weight: 500;
+  }
+  .mode-badge.live { color: var(--ok); background: var(--ok-soft); border-color: var(--ok-border); }
+  .mode-badge.demo { color: var(--warn); background: var(--warn-soft); border-color: var(--warn-border); }
+
+  /* Tabs */
+  .tabs-wrap {
+    position: relative; margin-bottom: 22px;
+  }
+  .tabs {
+    display: flex; gap: 4px; background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: 12px; padding: 4px;
+    overflow-x: auto; scrollbar-width: none;
+    -webkit-overflow-scrolling: touch; scroll-behavior: smooth;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    padding: 10px 16px; background: transparent; border: none;
+    color: var(--text-dim); font-family: inherit;
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    border-radius: 8px; white-space: nowrap; flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+  }
+  .tab:hover { color: var(--text); background: var(--surface-3); }
+  .tab.active { color: var(--accent); background: var(--accent-soft); }
+
+  /* Tabs scroll arrow buttons */
+  .tabs-scroll {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--surface); border: 0.5px solid var(--border);
+    cursor: pointer; z-index: 5; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 10px rgba(20, 30, 60, 0.08);
+    transition: background 0.15s, opacity 0.2s, transform 0.15s;
+  }
+  .tabs-scroll:hover { background: var(--surface-3); }
+  .tabs-scroll:active { transform: translateY(-50%) scale(0.94); }
+  .tabs-scroll.left { left: 4px; }
+  .tabs-scroll.right { right: 4px; }
+  .tabs-scroll.hidden { opacity: 0; pointer-events: none; }
+  .tabs-scroll::before {
+    content: ''; width: 7px; height: 7px;
+    border-top: 1.5px solid var(--text); border-right: 1.5px solid var(--text);
+  }
+  .tabs-scroll.left::before { transform: rotate(-135deg); margin-left: 2px; }
+  .tabs-scroll.right::before { transform: rotate(45deg); margin-right: 2px; }
+
+  /* Panels */
+  .panel { display: none; animation: fadein 0.2s ease; }
+  .panel.active { display: block; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+
+  h2 {
+    font-size: 22px; font-weight: 500; margin-bottom: 6px; letter-spacing: -0.01em; color: var(--text);
+  }
+  h3 {
+    font-size: 14px; font-weight: 500; margin: 18px 0 10px; color: var(--text);
+  }
+  .lead { color: var(--text-dim); margin-bottom: 22px; max-width: 720px; font-size: 13px; }
+
+  /* Cards */
+  .card {
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg); padding: 18px 22px; margin-bottom: 14px;
+  }
+  .card.accent { border-color: var(--accent-border); background: var(--accent-soft); }
+  .card.danger { border-color: var(--danger-border); background: var(--danger-soft); }
+  .card.warn { border-color: var(--warn-border); background: var(--warn-soft); }
+
+  /* Forms */
+  label {
+    display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 6px; font-weight: 500;
+  }
+  input, textarea, select {
+    width: 100%; background: var(--surface); border: 0.5px solid var(--border);
+    color: var(--text); padding: 10px 12px; border-radius: var(--radius);
+    font-family: inherit; font-size: 13px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  input:focus, textarea:focus, select:focus {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  textarea {
+    min-height: 110px; resize: vertical;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 12px; line-height: 1.5;
+  }
+  .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .input-row.three { grid-template-columns: 1fr 1fr 1fr; }
+  @media (max-width: 680px) {
+    .input-row, .input-row.three { grid-template-columns: 1fr; }
+  }
+
+  button.btn {
+    background: var(--accent); color: #fff; border: none;
+    padding: 10px 18px; border-radius: var(--radius); cursor: pointer;
+    font-family: inherit; font-weight: 500; font-size: 13px;
+    transition: background 0.15s, transform 0.1s;
+  }
+  button.btn:hover { background: var(--accent-2); }
+  button.btn:active { transform: scale(0.98); }
+  button.btn.ghost {
+    background: var(--surface); color: var(--text); border: 0.5px solid var(--border);
+  }
+  button.btn.ghost:hover { background: var(--surface-3); border-color: var(--border-2); }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+
+  /* Stat cards */
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px;
+  }
+  @media (max-width: 880px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+  .stat {
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg); padding: 16px 18px;
+  }
+  .stat .k {
+    font-size: 12px; color: var(--text-dim); margin-bottom: 6px; font-weight: 500;
+  }
+  .stat .v {
+    font-size: 26px; font-weight: 500; letter-spacing: -0.015em; color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  .stat .v.ok { color: var(--ok); }
+  .stat .v.bad { color: var(--danger); }
+  .stat .v.warn { color: var(--warn); }
+  .stat .note { font-size: 11px; color: var(--text-soft); margin-top: 6px; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    text-align: left; font-size: 11px; color: var(--text-dim); font-weight: 500;
+    padding: 10px 12px; border-bottom: 0.5px solid var(--border);
+  }
+  tbody td {
+    padding: 10px 12px; border-bottom: 0.5px solid var(--surface-3);
+    color: var(--text); vertical-align: middle;
+  }
+  tbody tr:hover { background: var(--surface-2); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .pill {
+    display: inline-block; padding: 3px 10px; border-radius: 100px;
+    font-size: 11px; font-weight: 500;
+  }
+  .pill.ok { background: var(--ok-soft); color: var(--ok); }
+  .pill.bad { background: var(--danger-soft); color: var(--danger); }
+  .pill.warn { background: var(--warn-soft); color: var(--warn); }
+
+  /* Photo + article cell */
+  .art-cell { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .art-photo, .art-photo-ph {
+    width: 42px; height: 52px; border-radius: 8px;
+    flex-shrink: 0;
+  }
+  .art-photo {
+    object-fit: cover; background: var(--surface-3);
+    border: 0.5px solid var(--border);
+  }
+  .art-photo-ph {
+    background: linear-gradient(135deg, var(--accent-soft), var(--surface-3));
+    border: 0.5px solid var(--accent-border);
+    display: grid; place-items: center;
+  }
+  .art-photo-ph svg { width: 20px; height: 20px; color: var(--accent); opacity: 0.7; }
+  .art-info { min-width: 0; }
+  .art-id { font-weight: 500; color: var(--text); font-size: 13px; }
+  .art-sub { font-size: 11px; color: var(--text-dim); margin-top: 1px; }
+
+  /* KRP table */
+  .krp-table {
+    background: var(--surface-2); border: 0.5px solid var(--border);
+    border-radius: var(--radius); padding: 14px;
+    font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px;
+  }
+  .krp-table .row { display: flex; justify-content: space-between; padding: 3px 0; color: var(--text-dim); }
+  .krp-table .row.zero { color: var(--ok); font-weight: 500; }
+  .krp-table .row.max { color: var(--danger); }
+
+  /* Info box */
+  .info {
+    padding: 14px 16px; border-radius: var(--radius);
+    background: var(--accent-soft); border: 0.5px solid var(--accent-border);
+    font-size: 13px; color: var(--text); margin: 14px 0;
+  }
+  .info.warn { background: var(--warn-soft); border-color: var(--warn-border); }
+  .info.danger { background: var(--danger-soft); border-color: var(--danger-border); }
+  .info strong { font-weight: 500; }
+
+  code {
+    background: var(--surface-2); padding: 2px 6px; border-radius: 4px;
+    font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px;
+    color: var(--accent); border: 0.5px solid var(--border);
+  }
+  pre {
+    background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--radius);
+    padding: 14px; overflow-x: auto;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 12px; color: var(--text); line-height: 1.6;
+  }
+
+  .muted { color: var(--text-dim); font-size: 13px; }
+  .hidden { display: none !important; }
+
+  footer {
+    margin-top: 50px; padding-top: 20px; border-top: 0.5px solid var(--border);
+    color: var(--text-dim); font-size: 12px; text-align: center;
+  }
+  .progress-bar {
+    height: 6px; background: var(--surface-3); border-radius: 100px; overflow: hidden;
+    margin-top: 6px;
+  }
+  .progress-bar > span {
+    display: block; height: 100%;
+    background: var(--accent);
+    transition: width 0.3s;
+  }
+
+  /* Cabinet switcher */
+  .cab-switcher { position: relative; }
+  .cab-btn {
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px 12px 8px 13px;
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: var(--radius); cursor: pointer;
+    font-family: inherit; font-size: 13px; font-weight: 500; color: var(--text);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .cab-btn:hover { background: var(--surface-3); border-color: var(--border-2); }
+  .cab-btn .cab-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+  }
+  .cab-btn .caret {
+    display: inline-block; width: 0; height: 0;
+    border-left: 4px solid transparent; border-right: 4px solid transparent;
+    border-top: 5px solid var(--text-dim); margin-left: 4px;
+  }
+  .cab-menu {
+    position: absolute; top: calc(100% + 6px); right: 0;
+    min-width: 260px; background: var(--surface);
+    border: 0.5px solid var(--border); border-radius: var(--radius-lg);
+    padding: 6px; z-index: 100;
+    box-shadow: 0 4px 24px rgba(20, 30, 60, 0.08);
+  }
+  .cab-menu.hidden { display: none; }
+  .cab-menu-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-soft); font-weight: 500;
+    padding: 8px 12px 4px;
+  }
+  .cab-menu-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-radius: 8px; cursor: pointer;
+    font-size: 13px; color: var(--text);
+    transition: background 0.15s;
+  }
+  .cab-menu-item:hover { background: var(--surface-3); }
+  .cab-menu-item.active { background: var(--accent-soft); color: var(--accent); }
+  .cab-menu-item.active .cab-dot { background: var(--accent); }
+  .cab-menu-item .cab-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--text-soft); flex-shrink: 0;
+  }
+  .cab-menu-divider {
+    height: 0.5px; background: var(--border); margin: 4px 0;
+  }
+  .cab-menu-action {
+    display: block; width: 100%; text-align: left;
+    padding: 9px 12px; border: none; background: transparent;
+    border-radius: 8px; cursor: pointer; color: var(--text-dim);
+    font-family: inherit; font-size: 12px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .cab-menu-action:hover { background: var(--surface-3); color: var(--text); }
+  .cab-menu-action.danger:hover { color: var(--danger); }
+
+  /* Coverage dashboard */
+  .cov-summary {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px;
+  }
+  @media (max-width: 680px) { .cov-summary { grid-template-columns: repeat(2, 1fr); } }
+  .cov-summary-card {
+    padding: 14px 16px; border-radius: 12px; border: 0.5px solid var(--border);
+  }
+  .cov-summary-card .lbl {
+    font-size: 11px; font-weight: 500;
+  }
+  .cov-summary-card .val {
+    font-size: 24px; font-weight: 500; margin-top: 4px; font-variant-numeric: tabular-nums;
+  }
+  .cov-grid {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;
+  }
+  @media (max-width: 1000px) { .cov-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .cov-grid { grid-template-columns: 1fr; } }
+  .cov-card {
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: 12px; padding: 16px 18px;
+  }
+  .cov-card.good { border-left: 3px solid var(--ok); border-radius: 12px; }
+  .cov-card.partial { border-left: 3px solid var(--warn); border-radius: 12px; }
+  .cov-card.bad { border-left: 3px solid var(--danger); border-radius: 12px; }
+  .cov-card.none { border-left: 3px solid var(--border-2); border-radius: 12px; }
+
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <div class="brand">
+    <div class="brand-mark">P</div>
+    <div>
+      <h1>Postal</h1>
+      <div class="sub">Ближайший склад каждому заказу</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center">
+    <div class="cab-switcher" id="cabSwitcher">
+      <button class="cab-btn" id="cabBtn">
+        <span class="cab-dot"></span>
+        <span id="cabName">Основной</span>
+        <span class="caret"></span>
+      </button>
+      <div class="cab-menu hidden" id="cabMenu"></div>
+    </div>
+    <div class="mode-badge demo" id="modeBadge">режим: demo</div>
+  </div>
+</header>
+
+<div class="tabs-wrap">
+  <button class="tabs-scroll left hidden" id="tabsScrollLeft" aria-label="Прокрутить влево"></button>
+  <nav class="tabs" id="tabsNav">
+    <button class="tab active" data-tab="setup">Настройка</button>
+    <button class="tab" data-tab="diag">Диагностика</button>
+    <button class="tab" data-tab="details">Детали по размерам</button>
+    <button class="tab" data-tab="plan">План поставки</button>
+    <button class="tab" data-tab="progress">Прогресс</button>
+    <button class="tab" data-tab="redist">Перераспределение</button>
+    <button class="tab" data-tab="econ">Экономика</button>
+    <button class="tab" data-tab="help">Справка</button>
+  </nav>
+  <button class="tabs-scroll right hidden" id="tabsScrollRight" aria-label="Прокрутить вправо"></button>
+</div>
+
+<!-- ========== SETUP ========== -->
+<section class="panel active" id="panel-setup">
+  <h2>Настройка кабинета</h2>
+  <p class="lead">Один раз ввёл токен — сайт сам тянет заказы, остатки, размеры. Данные раскладываются по всем вкладкам автоматически. Ничего копировать не нужно.</p>
+
+  <div class="card accent">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:16px">
+      <div>
+        <h3 style="margin-top:0;margin-bottom:4px">Синхронизация с Wildberries</h3>
+        <p class="muted" style="margin:0">Кабинет: <strong style="color:var(--text);font-weight:500" id="syncCabName">—</strong></p>
+      </div>
+      <div id="syncStatus"></div>
+    </div>
+
+    <label for="token">API-токен (категории: <code>Статистика</code> + <code>Контент</code>)</label>
+    <input type="password" id="token" placeholder="eyJhbGciOi..." autocomplete="off" />
+
+    <div class="input-row three" style="margin-top:14px">
+      <div>
+        <label>Период (дней назад)</label>
+        <input type="number" id="daysBack" value="30" min="7" max="180" />
+      </div>
+      <div style="grid-column:span 2">
+        <label>Прокси для обхода CORS</label>
+        <input type="text" id="proxyUrl" placeholder="http://localhost:8787/wb" />
+      </div>
+    </div>
+
+    <div class="btn-row" style="margin-top:18px">
+      <button class="btn" id="btnSync">Синхронизировать с WB</button>
+      <button class="btn ghost" id="btnDemo">Загрузить demo-данные</button>
+    </div>
+
+    <div id="syncLog" style="margin-top:16px;max-height:200px;overflow-y:auto;border-top:0.5px solid var(--accent-border);padding-top:12px"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Дополнить ДЛ из кабинета</h3>
+    <p class="muted" style="margin-bottom:12px">Wildberries не отдаёт <strong style="color:var(--text);font-weight:500">Долю Локализации</strong> через API — её нужно один раз взять из кабинета (Аналитика → Индекс локализации) и вставить сюда. Сайт смёрджит её с синхронизированными артикулами по nmId.</p>
+    <label>CSV: nmId, dl</label>
+    <textarea id="manualData" placeholder="nmId,dl
+18475621,34
+29384756,41
+31298475,62"></textarea>
+    <div class="btn-row">
+      <button class="btn ghost" id="btnManual">Обновить ДЛ</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Таблица КРП (напоминание)</h3>
+    <div class="krp-table" id="krpTable"></div>
+    <p class="muted" style="margin-top:12px">Обрати внимание на обрыв: 59,99% → 60,00% = КРП резко падает с 2% до 0%. Вся стратегия — подтянуть топ-артикулы до 60%+.</p>
+  </div>
+</section>
+
+<!-- ========== DIAGNOSTICS ========== -->
+<section class="panel" id="panel-diag">
+  <h2>Диагностика ИРП</h2>
+  <p class="lead">Средневзвешенный КРП по всем артикулам с учётом количества заказов. Топ-артикулы — главный рычаг.</p>
+
+  <div class="stat-grid">
+    <div class="stat">
+      <div class="k">Текущий ИРП</div>
+      <div class="v" id="statIrp">—</div>
+      <div class="note">цель &lt; 0,10%</div>
+    </div>
+    <div class="stat">
+      <div class="k">Артикулов всего</div>
+      <div class="v" id="statArt">—</div>
+      <div class="note"><span id="statArtBad">—</span> с ДЛ &lt; 60%</div>
+    </div>
+    <div class="stat">
+      <div class="k">Заказов (окно)</div>
+      <div class="v" id="statOrders">—</div>
+      <div class="note">за выбранный период</div>
+    </div>
+    <div class="stat">
+      <div class="k">Потенциал</div>
+      <div class="v ok" id="statPot">—</div>
+      <div class="note">если топ-5 → 60%+</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Покрытие регионов</h3>
+    <p class="muted" style="margin-bottom:16px">Федеральные округа по объёму заказов. Цвет — статус покрытия: есть ли у тебя быстрые склады для доставки в этот округ. Часы — минимальное время доставки среди покрытых городов округа.</p>
+    <div id="coverageGrid"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Топ-виновники высокого ИРП</h3>
+    <p class="muted" style="margin-bottom:16px">Отсортировано по вкладу в ИРП (заказы × КРП). Работать начинать с верха.</p>
+    <div style="overflow-x:auto">
+      <table id="diagTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Артикул</th>
+            <th class="num">ДЛ</th>
+            <th class="num">КРП</th>
+            <th class="num">Вклад в ИРП</th>
+            <th class="num">До 60%</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ========== DETAILS (по размерам) ========== -->
+<section class="panel" id="panel-details">
+  <h2>Детали по артикулам и размерам</h2>
+  <p class="lead">Полный раскрой как в кабинете: по каждому артикулу и размеру — заказы, остаток, оборачиваемость, ДЛ, КТР, КРП и вклад в ИЛ/ИРП. Сразу видно, какой размер какого артикула больше всего тянет ИРП.</p>
+
+  <div class="card">
+    <h3 style="margin-top:0">Загрузить данные по размерам</h3>
+    <p class="muted" style="margin-bottom:12px">CSV: <code>nmId,size,orders,stock,dl</code> — где <code>dl</code> это Доля Локализации размера в процентах (из кабинета WB).</p>
+    <textarea id="detailsCsv" placeholder="nmId,size,orders,stock,dl
+C-321,9,142,18,47.18
+C-321,10,124,37,58.87
+C-321,8,103,59,44.66
+C-321,7,88,56,39.77
+C-340,3,132,7,52.27
+C-340,4,132,12,46.21"></textarea>
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn" id="btnDetails">Построить отчёт</button>
+      <button class="btn ghost" id="btnDetailsDemo">Demo (из скриншота)</button>
+    </div>
+  </div>
+
+  <div id="detailsResult"></div>
+</section>
+
+<!-- ========== PLAN ========== -->
+<section class="panel" id="panel-plan">
+  <h2>План поставки</h2>
+  <p class="lead">Выбери приоритетный артикул — система покажет регионы без покрытия и рекомендуемые склады WB.</p>
+
+  <div class="card">
+    <h3 style="margin-top:0">Создать поставку</h3>
+    <p class="muted" style="margin-bottom:14px">Введите артикул и ростовку (размер × шт в 1 коробке). При повторном вводе того же Vendor Code ростовка подтянется автоматически.</p>
+
+    <div class="input-row three">
+      <div id="supVcWrap" style="position:relative">
+        <label>Артикул продавца</label>
+        <input id="supVendorCode" placeholder="напр. ММММ" autocomplete="off"/>
+      </div>
+      <div>
+        <label>Артикул WB</label>
+        <input id="supNmId" type="number" placeholder="123456789"/>
+      </div>
+      <div>
+        <label>Количество коробок</label>
+        <input id="supBoxes" type="number" min="1" value="1"/>
+      </div>
+    </div>
+
+    <div class="btn-row" style="margin-top:4px">
+      <button class="btn ghost" id="supPull" type="button" title="Найти размеры в локальном кэше и данных синхронизированного кабинета">Подтянуть размеры</button>
+      <label class="btn ghost" for="supCsvFile" style="cursor:pointer; margin:0">Загрузить CSV номенклатуры</label>
+      <input type="file" id="supCsvFile" accept=".csv,text/csv" style="display:none"/>
+      <button class="btn ghost" id="supPullApi" type="button" title="Запросить карточки товаров через WB Content API по токену активного кабинета">Загрузить через WB API</button>
+      <span id="supPullStatus" class="muted" style="margin-left:6px; align-self:center"></span>
+    </div>
+
+    <h4 style="margin:14px 0 8px; font-size:13px; font-weight:500; color:var(--text-dim)">Ростовка (размер × шт в 1 коробке)</h4>
+    <div id="supSizesRows"></div>
+    <div class="btn-row">
+      <button class="btn ghost" id="supAddSize" type="button">+ размер</button>
+    </div>
+
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn" id="supCalc" type="button">Добавить</button>
+      <button class="btn ghost" id="supSave" type="button">Сохранить ростовку</button>
+      <button class="btn ghost" id="supClear" type="button" disabled>Очистить список</button>
+      <button class="btn ghost" id="supExportCsv" type="button" disabled>CSV</button>
+      <button class="btn ghost" id="supExportXlsx" type="button" disabled>XLSX</button>
+    </div>
+
+    <div id="supResult" style="margin-top:16px"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Распознать накладную</h3>
+    <p class="muted" style="margin-bottom:14px">Загрузите фото накладной (печатной или рукописной) — система распознает текст и извлечёт пары «артикул → количество коробок». Распознанный текст можно поправить вручную перед извлечением. Поддерживается сокращённая форма записи: если строка начинается с <code style="background:var(--surface-2); padding:1px 4px; border-radius:3px">-N</code>, она читается как «та же база, что в предыдущей строке, но другой размер» (например, после <code style="background:var(--surface-2); padding:1px 4px; border-radius:3px">A519-2</code> запись <code style="background:var(--surface-2); padding:1px 4px; border-radius:3px">-5</code> превращается в <code style="background:var(--surface-2); padding:1px 4px; border-radius:3px">A519-5</code>). Найденные артикулы сравниваются с сохранёнными ростовками и WB-номенклатурой.</p>
+
+    <div class="btn-row">
+      <label class="btn ghost" for="ocrFile" style="cursor:pointer; margin:0">Выбрать фото</label>
+      <input type="file" id="ocrFile" accept="image/*" style="display:none"/>
+      <button class="btn ghost" id="ocrRecognize" type="button" disabled>Распознать</button>
+      <button class="btn ghost" id="ocrClear" type="button">Очистить</button>
+      <span id="ocrStatus" class="muted" style="margin-left:6px; align-self:center"></span>
+    </div>
+
+    <div id="ocrPreviewWrap" style="margin-top:12px; display:none">
+      <img id="ocrPreview" alt="Превью накладной" style="max-width:100%; max-height:320px; border:1px solid var(--border); border-radius:8px; background:var(--surface-2)"/>
+    </div>
+
+    <div id="ocrTextWrap" style="display:none; margin-top:14px">
+      <h4 style="margin:0 0 6px; font-size:13px; font-weight:500; color:var(--text-dim)">Распознанный текст (можно редактировать)</h4>
+      <textarea id="ocrText" rows="8" style="width:100%; box-sizing:border-box; padding:10px; font-family:'JetBrains Mono', ui-monospace, monospace; font-size:12px; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; color:var(--text); resize:vertical"></textarea>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn" id="ocrParse" type="button">Извлечь артикулы</button>
+      </div>
+    </div>
+
+    <div id="ocrParsed" style="margin-top:14px"></div>
+  </div>
+
+  <!-- Блок «Построить план» (географическое распределение по складам WB)
+       временно удалён из этой вкладки. Будет перенесён в отдельный раздел. -->
+</section>
+
+<!-- ========== PROGRESS ========== -->
+<section class="panel" id="panel-progress">
+  <h2>Мониторинг прогресса</h2>
+  <p class="lead">Окно ИРП — 13 недель скользящее. Первые улучшения видны через 2–3 недели.</p>
+
+  <div class="card">
+    <h3 style="margin-top:0">Снимки ИРП</h3>
+    <p class="muted" style="margin-bottom:14px">Каждое обновление данных сохраняется как снимок. Ниже — динамика.</p>
+    <div class="btn-row" style="margin-bottom:20px">
+      <button class="btn ghost" id="btnSnapshot">Сохранить текущий снимок</button>
+      <button class="btn ghost" id="btnClearSnaps">Очистить историю</button>
+    </div>
+    <div id="snapList"></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">ДЛ по приоритетным артикулам</h3>
+    <div id="dlProgress"></div>
+  </div>
+</section>
+
+<!-- ========== REDISTRIBUTION ========== -->
+<section class="panel" id="panel-redist">
+  <h2>Перераспределение</h2>
+  <p class="lead">Ежедневная планёрка. Загружаешь остатки и заказы за прошлую неделю — получаешь готовые заявки: какой товар, каких размеров, с какого склада и на какой везти. Прогноз = прошлая неделя × (1 + рост%).</p>
+
+  <div class="card">
+    <h3 style="margin-top:0">Параметры</h3>
+    <div class="input-row three">
+      <div>
+        <label>Рост к прошлой неделе, %</label>
+        <input type="number" id="growthPct" value="15" min="0" max="100" />
+      </div>
+      <div>
+        <label>Мин. дефицит для заявки, шт</label>
+        <input type="number" id="minGap" value="3" min="0" />
+      </div>
+      <div>
+        <label>Буфер на складе-доноре, %</label>
+        <input type="number" id="sourceBuffer" value="0" min="0" max="50" />
+      </div>
+    </div>
+
+    <label style="margin-top:18px">① Остатки по складам (CSV: <code>nmId,warehouse,size,qty</code>)</label>
+    <textarea id="stockCsv" placeholder="nmId,warehouse,size,qty
+18475621,Коледино,40,45
+18475621,Коледино,41,52
+18475621,Казань,40,3
+..."></textarea>
+
+    <label style="margin-top:18px">② Заказы за прошлую неделю (CSV: <code>nmId,region,orders</code>)</label>
+    <textarea id="ordersCsv" placeholder="nmId,region,orders
+18475621,Приволжский,15
+18475621,Сибирский,18
+..."></textarea>
+
+    <div class="btn-row" style="margin-top:18px">
+      <button class="btn" id="btnRedist">Построить заявки</button>
+      <button class="btn ghost" id="btnRedistDemo">Загрузить demo</button>
+      <button class="btn ghost" id="btnRedistExport">Экспорт CSV</button>
+      <button class="btn ghost" id="btnRedistSave">Сохранить как дневной снимок</button>
+    </div>
+    <div class="info">
+      <div>
+        <strong>Формула прогноза.</strong> Если на прошлой неделе артикул получил 15 заказов в регионе — на эту неделю закладываем <strong>15 × 1,15 = 18 шт</strong>. Если на ближайшем складе сейчас меньше 18 — делаем заявку на довоз недостающего с самого «жирного» склада-донора, распределяя по размерам пропорционально тому, что есть у донора.
+      </div>
+    </div>
+  </div>
+
+  <div id="redistResult"></div>
+</section>
+
+<!-- ========== ECONOMY ========== -->
+<section class="panel" id="panel-econ">
+  <h2>Экономика ИРП</h2>
+  <p class="lead">Сколько денег теряешь сейчас и сколько сэкономишь при достижении цели.</p>
+
+  <div class="card">
+    <div class="input-row three">
+      <div>
+        <label>Средняя цена выкупа, ₽</label>
+        <input type="number" id="avgPrice" value="4500" />
+      </div>
+      <div>
+        <label>Процент выкупа, %</label>
+        <input type="number" id="buyoutPct" value="35" />
+      </div>
+      <div>
+        <label>Индекс логистики (ИЛ)</label>
+        <input type="number" id="il" value="1.0" step="0.05" />
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btnEcon">Посчитать</button>
+    </div>
+  </div>
+
+  <div id="econResult"></div>
+</section>
+
+<!-- ========== HELP ========== -->
+<section class="panel" id="panel-help">
+  <h2>Справка</h2>
+
+  <div class="card">
+    <h3 style="margin-top:0">Формат ручного импорта (CSV)</h3>
+    <pre>nmId,orders,dl
+12345678,520,42
+87654321,410,68
+55554444,380,31</pre>
+    <p class="muted" style="margin-top:12px"><code>dl</code> — доля локализации в процентах (0–100). Если не знаешь — оставь 0 и сайт покажет худший сценарий.</p>
+  </div>
+
+  <div class="card accent">
+    <h3 style="margin-top:0">Источник карты «быстрых складов»</h3>
+    <p class="muted" style="margin-bottom:10px">Встроено <strong style="color:var(--text)">102 города</strong> России/СНГ с топ-6 складов WB и временем доставки в часах. Источник — тг-бот <code>@POSTAVLENOru_BOT</code>, данные обновляются 3 раза в день на стороне бота (снимок на момент сборки сайта).</p>
+    <p class="muted" style="margin-bottom:10px">Для каждого региона/города сайт берёт приоритет №1 (самый быстрый склад) как целевой для перераспределения. Можно писать полное имя («Ростов-на-Дону»), сокращённо («Ростов»), либо название федерального округа («Приволжский») — сработает мягкое сопоставление.</p>
+    <p class="muted">Охватываемые склады: Коледино, Электросталь, Подольск, Белые Столбы, Алексин (Тула), Рязань, Владимир, Казань, Новосемейкино, Сарапул, Екатеринбург, Новосибирск, Краснодар, Невинномысск, Волгоград, Воронеж, СПб Шушары, Калининград, Котовск, Пенза, Истра, Белая Дача, Обухово, Чашниково, Барнаул СЦ 2, Владивосток, Перспективный + склады Казахстана/Армении.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Мини-прокси на Node.js (против CORS)</h3>
+    <p class="muted" style="margin-bottom:12px">Сохрани как <code>proxy.js</code>, запусти <code>node proxy.js</code>. Требует Node 18+.</p>
+    <pre id="proxyCode"></pre>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Какие эндпоинты WB используются</h3>
+    <ul style="padding-left:20px; color:var(--text-dim); font-size:13px; line-height:1.8">
+      <li><code>GET statistics-api.wildberries.ru/api/v1/supplier/orders?dateFrom=...</code> — заказы с регионом (<code>oblastOkrugName</code>, <code>regionName</code>). Из этого строится география.</li>
+      <li>ДЛ/КРП/ИРП/КТР публичный API не отдаёт — их берём вручную из кабинета селлера (вкладка «Детали по размерам» или ручной импорт).</li>
+    </ul>
+  </div>
+
+  <div class="card warn">
+    <h3 style="margin-top:0">Оговорки, которые важно знать</h3>
+    <ul style="padding-left:20px; color:var(--text-dim); font-size:13px; line-height:1.8">
+      <li>Сайт работает <strong>полностью на клиенте</strong> — токен никуда не отправляется, кроме самого WB API (или твоего локального прокси).</li>
+      <li>Карта быстрых складов — это <strong>снимок</strong> на момент сборки сайта. Времена доставки у WB меняются — для 100% актуальности сверяйся с ботом-источником.</li>
+      <li>КТР рассчитан по аппроксимации ДЛ → коэффициент. Точную таблицу WB не публикует, но расхождение со скриншотами кабинета обычно ±0.05.</li>
+      <li>Окно ИРП — 13 недель. Не жди результата через 2 дня.</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  Postal · одностраничное приложение · данные не покидают браузер · <span id="ver">v2.4 · единая синхронизация</span>
+</footer>
+
+</div>
+
+<script>
+/* =========================================================
+   ФОТО ТОВАРА — автополучение с CDN Wildberries по nmId
+   Известный алгоритм: vol = nmId/100000, part = nmId/1000,
+   номер basket определяется по диапазонам vol.
+   ========================================================= */
+function getWbImageUrl(nmId) {
+  const n = Number(nmId);
+  if (!n || isNaN(n) || n < 1000) return null;
+  const vol = Math.floor(n / 100000);
+  const part = Math.floor(n / 1000);
+  let basket;
+  if (vol <= 143)      basket = '01';
+  else if (vol <= 287) basket = '02';
+  else if (vol <= 431) basket = '03';
+  else if (vol <= 719) basket = '04';
+  else if (vol <= 1007) basket = '05';
+  else if (vol <= 1061) basket = '06';
+  else if (vol <= 1115) basket = '07';
+  else if (vol <= 1219) basket = '08';
+  else if (vol <= 1313) basket = '09';
+  else if (vol <= 1601) basket = '10';
+  else if (vol <= 1655) basket = '11';
+  else if (vol <= 1919) basket = '12';
+  else if (vol <= 2045) basket = '13';
+  else if (vol <= 2189) basket = '14';
+  else if (vol <= 2405) basket = '15';
+  else if (vol <= 2621) basket = '16';
+  else if (vol <= 2837) basket = '17';
+  else if (vol <= 3053) basket = '18';
+  else if (vol <= 3269) basket = '19';
+  else if (vol <= 3485) basket = '20';
+  else basket = '21';
+  return `https://basket-${basket}.wbbasket.ru/vol${vol}/part${part}/${n}/images/c246x328/1.webp`;
+}
+
+const PHOTO_PLACEHOLDER_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>';
+
+// Глобальный обработчик ошибки загрузки фото
+window.__photoError = function(img) {
+  const ph = document.createElement('div');
+  ph.className = 'art-photo-ph';
+  ph.innerHTML = PHOTO_PLACEHOLDER_SVG;
+  if (img.parentNode) img.parentNode.replaceChild(ph, img);
+};
+
+// Возвращает HTML для ячейки «фото + артикул + подпись»
+function photoCell(nmId, sub, explicitUrl) {
+  const url = explicitUrl || getWbImageUrl(nmId);
+  const photo = url
+    ? `<img src="${url}" class="art-photo" alt="" loading="lazy" onerror="window.__photoError(this)">`
+    : `<div class="art-photo-ph">${PHOTO_PLACEHOLDER_SVG}</div>`;
+  const subHtml = sub ? `<div class="art-sub">${sub}</div>` : '';
+  return `<div class="art-cell">${photo}<div class="art-info"><div class="art-id">${nmId}</div>${subHtml}</div></div>`;
+}
+
+/* =========================================================
+   КРП ТАБЛИЦА (из промпта)
+   ========================================================= */
+const KRP_TABLE = [
+  { min: 60, max: 100, krp: 0.00 },
+  { min: 55, max: 59.99, krp: 2.00 },
+  { min: 50, max: 54.99, krp: 2.05 },
+  { min: 45, max: 49.99, krp: 2.05 },
+  { min: 40, max: 44.99, krp: 2.10 },
+  { min: 35, max: 39.99, krp: 2.10 },
+  { min: 30, max: 34.99, krp: 2.15 },
+  { min: 25, max: 29.99, krp: 2.20 },
+  { min: 20, max: 24.99, krp: 2.25 },
+  { min: 15, max: 19.99, krp: 2.30 },
+  { min: 10, max: 14.99, krp: 2.35 },
+  { min: 5,  max: 9.99,  krp: 2.45 },
+  { min: 0,  max: 4.99,  krp: 2.50 },
+];
+
+function krpForDl(dl) {
+  for (const row of KRP_TABLE) {
+    if (dl >= row.min && dl <= row.max) return row.krp;
+  }
+  return 2.50;
+}
+
+/* =========================================================
+   КТР (Коэффициент тарификации по локализации)
+   Аппроксимация по данным кабинета WB: чем выше ДЛ — тем ниже КТР.
+   Точные цифры WB — коммерческая тайна, но эти значения совпадают
+   со скриншотами кабинета в пределах ±0.05.
+   ========================================================= */
+const KTR_TABLE = [
+  { min: 90, max: 100, ktr: 0.65 },
+  { min: 85, max: 89.99, ktr: 0.70 },
+  { min: 80, max: 84.99, ktr: 0.80 },
+  { min: 75, max: 79.99, ktr: 0.85 },
+  { min: 70, max: 74.99, ktr: 0.90 },
+  { min: 65, max: 69.99, ktr: 0.95 },
+  { min: 60, max: 64.99, ktr: 1.00 },
+  { min: 55, max: 59.99, ktr: 1.05 },
+  { min: 50, max: 54.99, ktr: 1.10 },
+  { min: 45, max: 49.99, ktr: 1.20 },
+  { min: 40, max: 44.99, ktr: 1.30 },
+  { min: 35, max: 39.99, ktr: 1.40 },
+  { min: 30, max: 34.99, ktr: 1.50 },
+  { min: 25, max: 29.99, ktr: 1.55 },
+  { min: 20, max: 24.99, ktr: 1.60 },
+  { min: 0,  max: 19.99, ktr: 1.70 },
+];
+function ktrForDl(dl) {
+  for (const row of KTR_TABLE) {
+    if (dl >= row.min && dl <= row.max) return row.ktr;
+  }
+  return 1.70;
+}
+
+/* =========================================================
+   КАРТА ГОРОДОВ → БЫСТРЫЕ СКЛАДЫ WB
+   Источник: @POSTAVLENOru_BOT (самые быстрые склады)
+   Формат: city -> [[warehouse, hours], ... до 6 приоритетов]
+   ========================================================= */
+const CITIES_DATA = {"Москва Центр":[["Коледино",26],["Электросталь",26],["Подольск",26],["Белые Столбы",26],["Алексин (Тула)",27],["Рязань (Тюшевское)",32]],"Москва Север":[["Коледино",22],["Электросталь",22],["Подольск",22],["Белые Столбы",22],["Алексин (Тула)",23],["Рязань (Тюшевское)",28]],"Москва Запад":[["Коледино",22],["Подольск",22],["Белые Столбы",24],["Электросталь",25],["Алексин (Тула)",25],["Владимир",26]],"Москва Юг":[["Коледино",19],["Подольск",19],["Белые Столбы",19],["Алексин (Тула)",20],["Электросталь",21],["Владимир",25]],"Москва Восток":[["Белые Столбы",21],["Подольск",22],["Коледино",22],["Белая Дача",22],["Алексин (Тула)",23],["Электросталь",23]],"Коломна":[["Белые Столбы",23],["Электросталь",24],["Коледино",25],["Подольск",25],["Владимир",26],["Алексин (Тула)",28]],"Сергиев-Посад":[["Электросталь",23],["Коледино",26],["Подольск",26],["Владимир",29],["Рязань (Тюшевское)",30],["Алексин (Тула)",31]],"Наро-Фоминск":[["Коледино",24],["Подольск",24],["Белые Столбы",26],["Алексин (Тула)",27],["Электросталь",27],["Владимир",28]],"Орехово-Зуево":[["Электросталь",21],["Владимир",21],["Коледино",23],["Подольск",23],["Белые Столбы",23],["Алексин (Тула)",25]],"Волоколамск":[["Коледино",25],["Подольск",25],["Истра",27],["Белые Столбы",28],["Электросталь",29],["Владимир",32]],"Серпухов":[["Коледино",22],["Подольск",22],["Белые Столбы",22],["Электросталь",25],["Алексин (Тула)",26],["Владимир",30]],"Смоленск":[["Алексин (Тула)",24],["Коледино",26],["Подольск",26],["Электросталь",29],["Белые Столбы",31],["Рязань (Тюшевское)",34]],"Тверь":[["Электросталь",22],["Алексин (Тула)",25],["Коледино",26],["Подольск",26],["Белые Столбы",27],["Владимир",29]],"Кострома":[["Владимир",26],["Электросталь",27],["Алексин (Тула)",30],["Коледино",32],["Подольск",32],["Белые Столбы",32]],"Иваново":[["Владимир",22],["Электросталь",27],["Коледино",29],["Подольск",29],["Рязань (Тюшевское)",32],["Белые Столбы",33]],"Владимир":[["Владимир",18],["Электросталь",22],["Коледино",27],["Подольск",27],["Рязань (Тюшевское)",28],["Белые Столбы",28]],"Рязань":[["Рязань (Тюшевское)",23],["Электросталь",24],["Алексин (Тула)",24],["Коледино",26],["Подольск",26],["Белые Столбы",26]],"Тамбов":[["Котовск",18],["Воронеж",25],["Алексин (Тула)",29],["Рязань (Тюшевское)",29],["Волгоград",32],["Коледино",32]],"Воронеж":[["Воронеж",21],["Котовск",27],["Алексин (Тула)",32],["Белые Столбы",36],["Коледино",38],["Подольск",38]],"Белгород":[["Воронеж",26],["Алексин (Тула)",28],["Котовск",31],["Белые Столбы",32],["Коледино",35],["Подольск",35]],"Курск":[["Алексин (Тула)",23],["Воронеж",24],["Котовск",27],["Коледино",30],["Подольск",30],["Белые Столбы",30]],"Липецк":[["Котовск",24],["Алексин (Тула)",26],["Коледино",27],["Подольск",27],["Воронеж",28],["Электросталь",30]],"Орел":[["Алексин (Тула)",25],["Белые Столбы",28],["Коледино",29],["Подольск",29],["Электросталь",30],["Воронеж",32]],"Брянск":[["Алексин (Тула)",23],["Белые Столбы",27],["Коледино",28],["Воронеж",28],["Подольск",28],["Электросталь",29]],"Тула":[["Алексин (Тула)",22],["Белые Столбы",25],["Коледино",26],["Подольск",26],["Электросталь",27],["Рязань (Тюшевское)",29]],"Калуга":[["Алексин (Тула)",22],["Коледино",27],["Подольск",27],["Белые Столбы",30],["Электросталь",31],["Котовск",32]],"Ярославль":[["Владимир",22],["Электросталь",23],["Алексин (Тула)",26],["Коледино",28],["Подольск",28],["Белые Столбы",28]],"Псков":[["Электросталь",35],["Коледино",37],["Подольск",37],["Алексин (Тула)",38],["Белые Столбы",38],["Обухово",39]],"Великий Новгород":[["Склад СПБ Шушары Московское",21],["Электросталь",27],["Коледино",34],["Владимир",34],["Подольск",34],["Алексин (Тула)",37]],"Вологда":[["Электросталь",27],["Белые Столбы",32],["Рязань (Тюшевское)",33],["Владимир",34],["Коледино",36],["Белая Дача",36]],"Сыктывкар":[["Казань",36],["Сарапул",38],["Новосемейкино",49],["Владимир",50],["Электросталь",50],["Коледино",54]],"Санкт-Петербург":[["Склад СПБ Шушары Московское",16],["Электросталь",29],["Коледино",30],["Подольск",30],["Владимир",31],["Алексин (Тула)",32]],"Петрозаводск":[["Склад СПБ Шушары Московское",27],["Электросталь",38],["Владимир",45],["Обухово",46],["Белые Столбы",48],["Рязань (Тюшевское)",49]],"Мурманск":[["Электросталь",44],["Коледино",51],["Подольск",51],["Обухово",51],["Рязань (Тюшевское)",53],["Алексин (Тула)",53]],"Архангельск":[["Электросталь",40],["Подольск",43],["Коледино",43],["Белые Столбы",44],["Владимир",45],["Алексин (Тула)",46]],"Нарьян-Мар":[["Подольск",270],["Коледино",270],["Алексин (Тула)",270],["Электросталь",272],["Белые Столбы",273],["Обухово",273]],"Калининград":[["Калининград",20],["Алексин (Тула)",77],["Белые Столбы",80],["Котовск",86],["Воронеж",88],["Коледино",90]],"Саратов":[["Пенза",24],["Котовск",26],["Волгоград",30],["Воронеж",30],["Казань",30],["Алексин (Тула)",39]],"Оренбург":[["Новосемейкино",28],["Казань",33],["Сарапул",40],["Актобе",40],["Перспективный",45],["Электросталь",49]],"Самара":[["Новосемейкино",21],["Казань",29],["Волгоград",39],["Коледино",43],["Подольск",43],["Сарапул",44]],"Уфа":[["Сарапул",28],["Казань",30],["Новосемейкино",33],["Перспективный",33],["Пенза",40],["Владимир",47]],"Казань":[["Казань",19],["Новосемейкино",29],["Сарапул",30],["Владимир",32],["Котовск",36],["Алексин (Тула)",37]],"Чебоксары":[["Казань",25],["Сарапул",35],["Новосемейкино",36],["Владимир",36],["Электросталь",38],["Коледино",40]],"Нижний Новгород":[["Владимир",23],["Казань",24],["Электросталь",27],["Подольск",30],["Коледино",30],["Пенза",31]],"Саранск":[["Пенза",29],["Котовск",32],["Новосемейкино",33],["Казань",33],["Воронеж",38],["Белые Столбы",44]],"Ульяновск":[["Казань",24],["Новосемейкино",27],["Пенза",28],["Владимир",35],["Сарапул",35],["Коледино",38]],"Пенза":[["Пенза",20],["Котовск",25],["Воронеж",30],["Казань",31],["Алексин (Тула)",35],["Рязань (Тюшевское)",36]],"Йошкар-Ола":[["Казань",23],["Сарапул",33],["Новосемейкино",34],["Владимир",34],["Электросталь",36],["Коледино",38]],"Ижевск":[["Сарапул",22],["Казань",28],["Перспективный",40],["Владимир",44],["Новосемейкино",47],["Электросталь",49]],"Пермь":[["Перспективный",26],["Сарапул",29],["Казань",35],["Новосемейкино",43],["Электросталь",55],["Котовск",56]],"Киров":[["Казань",26],["Сарапул",27],["Новосемейкино",34],["Электросталь",37],["Владимир",38],["Коледино",42]],"Волгоград":[["Волгоград",20],["Котовск",27],["Краснодар",33],["Белые Столбы",33],["Воронеж",35],["Коледино",36]],"Ростов-на-Дону":[["Краснодар",25],["Воронеж",28],["Невинномысск",28],["Волгоград",34],["Котовск",34],["Пенза",36]],"Астрахань":[["Волгоград",28],["Невинномысск",30],["Краснодар",37],["Котовск",37],["Воронеж",45],["Белые Столбы",48]],"Элиста":[["Волгоград",30],["Котовск",37],["Краснодар",43],["Белые Столбы",43],["Воронеж",45],["Коледино",46]],"Краснодар":[["Краснодар",20],["Невинномысск",29],["Воронеж",38],["Волгоград",45],["Алексин (Тула)",48],["Котовск",50]],"Симферополь":[["Воронеж",38],["Невинномысск",41],["Краснодар",41],["Котовск",47],["Алексин (Тула)",50],["Электросталь",51]],"Майкоп":[["Краснодар",29],["Невинномысск",38],["Воронеж",47],["Волгоград",54],["Алексин (Тула)",57],["Котовск",59]],"Севастополь":[["Воронеж",41],["Краснодар",44],["Невинномысск",44],["Котовск",50],["Алексин (Тула)",53],["Электросталь",54]],"Ставрополь":[["Невинномысск",23],["Краснодар",26],["Волгоград",34],["Воронеж",45],["Котовск",45],["Алексин (Тула)",46]],"Черкесск":[["Невинномысск",24],["Краснодар",27],["Волгоград",35],["Воронеж",46],["Котовск",46],["Алексин (Тула)",47]],"Нальчик":[["Невинномысск",23],["Краснодар",29],["Волгоград",37],["Воронеж",47],["Коледино",48],["Подольск",48]],"Владикавказ":[["Невинномысск",25],["Краснодар",29],["Волгоград",42],["Котовск",48],["Алексин (Тула)",48],["Воронеж",50]],"Грозный":[["Невинномысск",28],["Краснодар",32],["Волгоград",45],["Котовск",51],["Алексин (Тула)",51],["Воронеж",53]],"Махачкала":[["Невинномысск",32],["Краснодар",38],["Волгоград",49],["Котовск",54],["Электросталь",57],["Алексин (Тула)",59]],"Тюмень":[["Перспективный",26],["Сарапул",42],["Новосемейкино",49],["Казань",51],["Владимир",56],["Пенза",59]],"Челябинск":[["Перспективный",24],["Сарапул",34],["Новосемейкино",39],["Казань",47],["Электросталь",48],["Пенза",50]],"Курган":[["Перспективный",30],["Сарапул",40],["Новосемейкино",45],["Казань",53],["Электросталь",54],["Пенза",56]],"Екатеринбург":[["Перспективный",22],["Сарапул",37],["Казань",38],["Новосемейкино",41],["Пенза",53],["Коледино",54]],"Ханты-Мансийск":[["Перспективный",46],["Сарапул",62],["Новосемейкино",68],["Пенза",75],["Казань",75],["Владимир",79]],"Сургут":[["Перспективный",38],["Сарапул",54],["Новосемейкино",60],["Казань",67],["Пенза",67],["Владимир",71]],"Новый Уренгой":[["Перспективный",79],["Сарапул",102],["Казань",110],["Электросталь",116],["Новосемейкино",117],["Белая Дача",123]],"Омск":[["Новосибирск",35],["Перспективный",39],["Сарапул",56],["Казань",60],["Новосемейкино",66],["Электросталь",68]],"Новосибирск":[["Новосибирск",21],["Барнаул СЦ 2",37],["Перспективный",51],["Сарапул",75],["Казань",78],["Новосемейкино",80]],"Барнаул":[["Новосибирск",30],["Барнаул СЦ 2",51],["Перспективный",54],["Сарапул",69],["Казань",71],["Электросталь",75]],"Кемерово":[["Новосибирск",29],["Барнаул СЦ 2",44],["Перспективный",53],["Алексин (Тула)",76],["Электросталь",78],["Новосемейкино",83]],"Горно-Алтайск":[["Барнаул СЦ 2",32],["Новосибирск",45],["Перспективный",63],["Новосемейкино",85],["Казань",87],["Пенза",87]],"Кызыл":[["Новосибирск",67],["Барнаул СЦ 2",79],["Перспективный",83],["Новосемейкино",101],["Владимир",107],["Сарапул",114]],"Абакан":[["Новосибирск",62],["Барнаул СЦ 2",74],["Перспективный",78],["Новосемейкино",96],["Владимир",102],["Сарапул",109]],"Красноярск":[["Новосибирск",42],["Барнаул СЦ 2",56],["Перспективный",64],["Казань",73],["Электросталь",82],["Сарапул",83]],"Томск":[["Новосибирск",43],["Перспективный",52],["Барнаул СЦ 2",59],["Сарапул",78],["Новосемейкино",79],["Котовск",79]],"Норильск":[["Электросталь",121],["Белая Дача",121],["Владимир",121],["Коледино",130],["Подольск",130],["Рязань (Тюшевское)",132]],"Иркутск":[["Новосибирск",53],["Барнаул СЦ 2",62],["Перспективный",82],["Электросталь",93],["Владивосток",94],["Казань",95]],"Улан-Удэ":[["Новосибирск",68],["Барнаул СЦ 2",79],["Владивосток",107],["Перспективный",108],["Новосемейкино",116],["Казань",119]],"Чита":[["Новосибирск",91],["Казань",116],["Перспективный",119],["Барнаул СЦ 2",121],["Владивосток",122],["Новосемейкино",145]],"Якутск":[["Новосибирск",175],["Барнаул СЦ 2",211],["Владивосток",223],["Электросталь",230],["Перспективный",233],["Казань",244]],"Хабаровск":[["Владивосток",80],["Белая Дача",166],["Барнаул СЦ 2",173],["Воронеж",174],["Владимир",176],["Пенза",177]],"Благовещенск":[["Новосибирск",102],["Барнаул СЦ 2",133],["Перспективный",138],["Владивосток",143],["Волгоград",152],["Белые Столбы",152]],"Владивосток":[["Владивосток",33],["Владимир",174],["Сарапул",176],["Белая Дача",183],["Барнаул СЦ 2",186],["Пенза",187]],"Магадан":[["Коледино",212],["Подольск",212],["Белые Столбы",221],["Волгоград",250],["Электросталь",252],["Пенза",260]],"Петропавловск-Камчатский":[["Электросталь",147],["Владимир",157],["Рязань (Тюшевское)",177],["Коледино",181],["Подольск",181],["Казань",189]],"Анадырь":[["Пенза",319],["Перспективный",322],["Склад Чашниково",325],["Истра",327],["СК Ереван",347],["Сарапул",360]],"Южно-Сахалинск":[["Владивосток",173],["Владимир",281],["Новосибирск",291],["Перспективный",305],["Барнаул СЦ 2",310],["Сарапул",329]],"Минск":[["Алексин (Тула)",32],["Коледино",33],["Электросталь",33],["Подольск",33],["Белые Столбы",33],["Владимир",37]],"Гомель":[["Алексин (Тула)",27],["Коледино",31],["Подольск",31],["Электросталь",33],["Котовск",39],["Владимир",40]],"Могилев":[["Алексин (Тула)",34],["Коледино",37],["Электросталь",37],["Подольск",37],["Белые Столбы",39],["Владимир",44]],"Витебск":[["Алексин (Тула)",34],["Коледино",37],["Электросталь",37],["Подольск",37],["Белые Столбы",39],["Владимир",44]],"Гродно":[["Алексин (Тула)",44],["Коледино",45],["Подольск",45],["Электросталь",46],["Белые Столбы",53],["Владимир",54]],"Брест":[["Коледино",39],["Подольск",39],["Белые Столбы",43],["Алексин (Тула)",44],["Электросталь",45],["Владимир",46]],"Алматы":[["Алматы Атакент",18],["Склад Астана Карагандинское шоссе",55],["Новосибирск",122],["Актобе",125],["Перспективный",130],["Казань",134]],"Астана":[["Склад Астана Карагандинское шоссе",23],["Алматы Атакент",58],["Актобе",81],["Перспективный",82],["Сарапул",104],["Казань",106]],"Шымкент":[["Алматы Атакент",84],["Склад Астана Карагандинское шоссе",127],["Истра",145],["Коледино",147],["Подольск",147],["Белые Столбы",151]]};
+
+// Дефолтные города для федеральных округов — чтобы поддержать старые вводы
+const OKRUG_DEFAULTS = {
+  'Центральный': 'Москва Центр',
+  'Москва': 'Москва Центр',
+  'Московская': 'Москва Центр',
+  'Северо-Западный': 'Санкт-Петербург',
+  'Санкт-Петербург': 'Санкт-Петербург',
+  'Ленинградская': 'Санкт-Петербург',
+  'Южный': 'Краснодар',
+  'Краснодарский': 'Краснодар',
+  'Ростовская': 'Ростов-на-Дону',
+  'Северо-Кавказский': 'Ставрополь',
+  'Ставропольский': 'Ставрополь',
+  'Дагестан': 'Махачкала',
+  'Приволжский': 'Казань',
+  'Татарстан': 'Казань',
+  'Башкортостан': 'Уфа',
+  'Нижегородская': 'Нижний Новгород',
+  'Самарская': 'Самара',
+  'Уральский': 'Екатеринбург',
+  'Свердловская': 'Екатеринбург',
+  'Челябинская': 'Челябинск',
+  'Тюменская': 'Тюмень',
+  'Сибирский': 'Новосибирск',
+  'Новосибирская': 'Новосибирск',
+  'Красноярский': 'Красноярск',
+  'Омская': 'Омск',
+  'Дальневосточный': 'Хабаровск',
+  'Хабаровский': 'Хабаровск',
+  'Приморский': 'Владивосток',
+};
+
+// Найти запись в CITIES_DATA по городу/региону с мягким сопоставлением
+function resolveCity(input) {
+  if (!input) return null;
+  const s = String(input).trim();
+  // Точное совпадение
+  if (CITIES_DATA[s]) return s;
+  // Попытка через OKRUG_DEFAULTS
+  for (const [key, city] of Object.entries(OKRUG_DEFAULTS)) {
+    if (s.includes(key) || key.includes(s.split(/[\s,]+/)[0])) {
+      if (CITIES_DATA[city]) return city;
+    }
+  }
+  // Поиск по первому слову
+  const firstWord = s.split(/[\s,()]+/)[0].toLowerCase();
+  for (const key of Object.keys(CITIES_DATA)) {
+    if (key.toLowerCase().startsWith(firstWord) && firstWord.length >= 4) return key;
+  }
+  return null;
+}
+
+// Быстрый склад = 1-й приоритет из Excel
+function getFastestWarehouse(regionOrCity) {
+  const city = resolveCity(regionOrCity);
+  if (!city) return null;
+  const list = CITIES_DATA[city];
+  if (!list || !list.length) return null;
+  return { name: list[0][0], hours: list[0][1], city, priorities: list };
+}
+
+// Все топ-склады для города (для детального отчёта)
+function getWarehousesForCity(regionOrCity) {
+  const city = resolveCity(regionOrCity);
+  if (!city) return [];
+  return (CITIES_DATA[city] || []).map(([name, hours]) => ({ name, hours }));
+}
+
+/* =========================================================
+   DEMO DATA
+   ========================================================= */
+const DEMO_ARTICLES = [
+  { nmId: 18475621, orders: 842, dl: 34, regions: { 'Центральный':210, 'Северо-Западный':88, 'Приволжский':165, 'Сибирский':130, 'Уральский':95, 'Южный':72, 'Дальневосточный':82 } },
+  { nmId: 29384756, orders: 611, dl: 41, regions: { 'Центральный':180, 'Приволжский':120, 'Уральский':110, 'Сибирский':95, 'Южный':60, 'Северо-Западный':46 } },
+  { nmId: 31298475, orders: 540, dl: 62, regions: { 'Центральный':280, 'Северо-Западный':120, 'Приволжский':80, 'Южный':60 } },
+  { nmId: 47586920, orders: 488, dl: 29, regions: { 'Сибирский':180, 'Дальневосточный':110, 'Уральский':88, 'Центральный':60, 'Приволжский':50 } },
+  { nmId: 55647382, orders: 402, dl: 48, regions: { 'Центральный':140, 'Приволжский':110, 'Южный':72, 'Уральский':55, 'Сибирский':25 } },
+  { nmId: 62839475, orders: 355, dl: 73, regions: { 'Центральный':200, 'Северо-Западный':90, 'Приволжский':65 } },
+  { nmId: 71928364, orders: 298, dl: 21, regions: { 'Дальневосточный':140, 'Сибирский':88, 'Уральский':40, 'Центральный':30 } },
+  { nmId: 88475623, orders: 264, dl: 55, regions: { 'Центральный':110, 'Приволжский':70, 'Уральский':50, 'Южный':34 } },
+  { nmId: 91827364, orders: 221, dl: 67, regions: { 'Центральный':130, 'Северо-Западный':60, 'Приволжский':31 } },
+  { nmId: 10293847, orders: 187, dl: 38, regions: { 'Южный':80, 'Центральный':55, 'Приволжский':32, 'Северо-Западный':20 } },
+];
+
+/* =========================================================
+   STATE
+   ========================================================= */
+const state = {
+  mode: 'demo',
+  articles: [],
+};
+
+/* =========================================================
+   ТАБЫ
+   ========================================================= */
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+    // Автоматически прокрутить вкладку к центру, если она обрезана
+    btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  });
+});
+
+// Логика стрелок прокрутки вкладок
+(function initTabsScroll() {
+  const nav = document.getElementById('tabsNav');
+  const left = document.getElementById('tabsScrollLeft');
+  const right = document.getElementById('tabsScrollRight');
+  if (!nav || !left || !right) return;
+
+  function update() {
+    const max = nav.scrollWidth - nav.clientWidth;
+    const pos = nav.scrollLeft;
+    left.classList.toggle('hidden', pos <= 2);
+    right.classList.toggle('hidden', pos >= max - 2);
+  }
+  function scrollBy(delta) {
+    nav.scrollBy({ left: delta, behavior: 'smooth' });
+  }
+  left.addEventListener('click', () => scrollBy(-220));
+  right.addEventListener('click', () => scrollBy(220));
+  nav.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+  // Колёсико мыши → горизонтальный скролл
+  nav.addEventListener('wheel', (e) => {
+    if (Math.abs(e.deltaX) < Math.abs(e.deltaY)) {
+      e.preventDefault();
+      nav.scrollLeft += e.deltaY;
+    }
+  }, { passive: false });
+  setTimeout(update, 50);
+  setTimeout(update, 300);
+})();
+
+/* =========================================================
+   KRP TABLE RENDER
+   ========================================================= */
+(function renderKrpTable() {
+  const el = document.getElementById('krpTable');
+  el.innerHTML = KRP_TABLE.map(r => {
+    const cls = r.krp === 0 ? 'zero' : (r.krp === 2.5 ? 'max' : '');
+    const range = `${r.min.toFixed(2)} – ${r.max.toFixed(2)}%`;
+    return `<div class="row ${cls}"><span>ДЛ ${range}</span><span>КРП ${r.krp.toFixed(2)}%</span></div>`;
+  }).join('');
+})();
+
+/* =========================================================
+   ВЫЧИСЛЕНИЕ ИРП
+   ========================================================= */
+function computeIrp(articles) {
+  let totalOrders = 0, weighted = 0;
+  for (const a of articles) {
+    const krp = krpForDl(a.dl);
+    totalOrders += a.orders;
+    weighted += a.orders * krp;
+  }
+  const irp = totalOrders > 0 ? (weighted / totalOrders) : 0;
+  return { irp, totalOrders };
+}
+
+function contributionOf(article, totalOrders) {
+  // вклад артикула в итоговый ИРП в процентных пунктах
+  const krp = krpForDl(article.dl);
+  return totalOrders > 0 ? (article.orders * krp / totalOrders) : 0;
+}
+
+function irpClass(irp) {
+  if (irp < 0.1) return 'ok';
+  if (irp < 1.0) return 'warn';
+  return 'bad';
+}
+function irpEmoji(irp) {
+  if (irp < 0.1) return '🟢';
+  if (irp < 1.0) return '🟡';
+  return '🔴';
+}
+
+/* =========================================================
+   РЕНДЕР ДИАГНОСТИКИ
+   ========================================================= */
+function renderDiagnostics() {
+  const arts = state.articles;
+  if (!arts.length) {
+    document.getElementById('statIrp').textContent = '—';
+    document.getElementById('statArt').textContent = '—';
+    document.getElementById('statOrders').textContent = '—';
+    document.getElementById('statPot').textContent = '—';
+    document.querySelector('#diagTable tbody').innerHTML =
+      '<tr><td colspan="6" class="muted" style="text-align:center;padding:32px">Нет данных. Загрузи данные во вкладке «Настройка».</td></tr>';
+    renderRegionalCoverage();
+    return;
+  }
+
+  const { irp, totalOrders } = computeIrp(arts);
+  const badArts = arts.filter(a => a.dl < 60).length;
+
+  // потенциал: если топ-5 поднять до 60% ДЛ
+  const sortedByContrib = [...arts].sort((a,b) => contributionOf(b,totalOrders) - contributionOf(a,totalOrders));
+  const optimized = arts.map(a => {
+    const inTop5 = sortedByContrib.slice(0,5).some(x => x.nmId === a.nmId);
+    return inTop5 ? { ...a, dl: 60 } : a;
+  });
+  const { irp: irpOpt } = computeIrp(optimized);
+  const delta = irp - irpOpt;
+
+  const statIrp = document.getElementById('statIrp');
+  statIrp.textContent = irp.toFixed(2) + '%';
+  statIrp.className = 'v ' + irpClass(irp);
+
+  document.getElementById('statArt').textContent = arts.length;
+  document.getElementById('statArtBad').textContent = badArts;
+  document.getElementById('statOrders').textContent = totalOrders.toLocaleString('ru-RU');
+  document.getElementById('statPot').textContent = '−' + delta.toFixed(2) + '%';
+
+  // таблица
+  const tbody = document.querySelector('#diagTable tbody');
+  const rows = sortedByContrib.map((a, i) => {
+    const krp = krpForDl(a.dl);
+    const contrib = contributionOf(a, totalOrders);
+    const needed = Math.max(0, 60 - a.dl);
+    const dlClass = a.dl >= 60 ? 'ok' : (a.dl >= 40 ? 'warn' : 'bad');
+    return `<tr>
+      <td style="color:var(--text-soft);width:30px">${i+1}</td>
+      <td>${photoCell(a.nmId, a.orders.toLocaleString('ru-RU') + ' заказов', a.photo)}</td>
+      <td class="num"><span class="pill ${dlClass}">ДЛ ${a.dl.toFixed(0)}%</span></td>
+      <td class="num">${krp.toFixed(2)}%</td>
+      <td class="num"><strong style="color:${contrib > 0.1 ? 'var(--danger)' : 'var(--text)'}">${contrib.toFixed(3)}%</strong></td>
+      <td class="num">${needed > 0 ? '<span style="color:var(--warn)">+' + needed.toFixed(0) + '%</span>' : '<span style="color:var(--ok)">✓</span>'}</td>
+    </tr>`;
+  }).join('');
+  tbody.innerHTML = rows;
+
+  // обновить селект плана (блок временно скрыт — guard)
+  const sel = document.getElementById('planArt');
+  if (sel) {
+    sel.innerHTML = arts
+      .filter(a => a.dl < 60)
+      .sort((a,b) => b.orders - a.orders)
+      .map(a => `<option value="${a.nmId}">${a.nmId} · ${a.orders} заказов · ДЛ ${a.dl}%</option>`)
+      .join('');
+  }
+
+  // покрытие регионов
+  renderRegionalCoverage();
+}
+
+/* =========================================================
+   ПЛАН ПОСТАВКИ
+   ========================================================= */
+function buildSupplyPlan(article, totalQty) {
+  if (!article.regions) {
+    return { error: 'Нет данных о географии заказов. Для реальных данных сайт берёт это из эндпоинта /supplier/orders — включи API или добавь вручную.' };
+  }
+  // посчитать доли регионов
+  const totalRegionOrders = Object.values(article.regions).reduce((a,b) => a+b, 0);
+  const regionShares = Object.entries(article.regions)
+    .map(([r,n]) => ({ region: r, orders: n, share: n/totalRegionOrders }))
+    .sort((a,b) => b.orders - a.orders);
+
+  // под каждый регион подобрать быстрый склад (из Excel-карты)
+  const allocation = new Map();
+  for (const rs of regionShares) {
+    const wh = getFastestWarehouse(rs.region);
+    if (wh) {
+      const qty = Math.round(rs.share * totalQty);
+      if (!allocation.has(wh.name)) {
+        allocation.set(wh.name, { qty: 0, regions: [], hours: wh.hours });
+      }
+      const a = allocation.get(wh.name);
+      a.qty += qty;
+      a.regions.push(`${rs.region} (${(rs.share*100).toFixed(0)}%, ${wh.hours}ч)`);
+    }
+  }
+
+  return {
+    regionShares,
+    allocation: [...allocation.entries()].map(([name, data]) => ({ name, ...data })),
+  };
+}
+
+// Блок «Построить план» временно скрыт — обработчик активен только если элементы существуют.
+const _btnPlan = document.getElementById('btnPlan');
+if (_btnPlan) _btnPlan.addEventListener('click', () => {
+  const nmId = Number(document.getElementById('planArt').value);
+  const qty = Number(document.getElementById('planQty').value) || 200;
+  const article = state.articles.find(a => a.nmId === nmId);
+  const container = document.getElementById('planResult');
+  if (!article) {
+    container.innerHTML = '<div class="card danger">Артикул не найден.</div>';
+    return;
+  }
+  const plan = buildSupplyPlan(article, qty);
+  if (plan.error) {
+    container.innerHTML = `<div class="card warn"><p>${plan.error}</p></div>`;
+    return;
+  }
+  const krpBefore = krpForDl(article.dl);
+  const krpAfter = 0;
+  container.innerHTML = `
+    <div class="card accent">
+      <h3 style="margin-top:0">План поставки · артикул ${article.nmId}</h3>
+      <p class="muted" style="margin-bottom:18px">Текущая ДЛ: <strong style="color:var(--text)">${article.dl}%</strong> → цель <strong style="color:var(--accent)">60%+</strong> · КРП <strong>${krpBefore.toFixed(2)}% → ${krpAfter.toFixed(2)}%</strong></p>
+
+      <h3>География заказов</h3>
+      <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Регион</th><th class="num">Заказы</th><th class="num">Доля</th></tr></thead>
+        <tbody>${plan.regionShares.map(r => `
+          <tr><td>${r.region}</td><td class="num">${r.orders}</td><td class="num">${(r.share*100).toFixed(0)}%</td></tr>
+        `).join('')}</tbody>
+      </table>
+      </div>
+
+      <h3>Рекомендуемое распределение (${qty} шт.)</h3>
+      <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Склад WB</th><th class="num">Кол-во</th><th>Покрывает</th></tr></thead>
+        <tbody>${plan.allocation.map(a => `
+          <tr><td><strong>${a.name}</strong></td><td class="num">${a.qty}</td><td>${a.regions.join(', ')}</td></tr>
+        `).join('')}</tbody>
+      </table>
+      </div>
+
+      <div class="info">
+        <div>После равномерной отгрузки по этим складам ДЛ вырастет до <strong style="color:var(--accent)">≈60–70%</strong>. Первые изменения ИРП — через 2–3 недели, финально — через 13 недель.</div>
+      </div>
+    </div>
+  `;
+});
+
+/* =========================================================
+   ПРОГРЕСС
+   ========================================================= */
+function loadSnapshots() {
+  try { return JSON.parse(localStorage.getItem('irp_snapshots') || '[]'); }
+  catch { return []; }
+}
+function saveSnapshots(s) {
+  localStorage.setItem('irp_snapshots', JSON.stringify(s));
+}
+function renderProgress() {
+  const snaps = loadSnapshots();
+  const el = document.getElementById('snapList');
+  if (!snaps.length) {
+    el.innerHTML = '<p class="muted">Пока нет снимков. Загрузи данные и нажми «Сохранить снимок».</p>';
+  } else {
+    el.innerHTML = `
+      <table>
+        <thead><tr><th>#</th><th>Дата</th><th class="num">ИРП</th><th class="num">Артикулов</th><th class="num">Заказов</th></tr></thead>
+        <tbody>${snaps.map((s,i) => `
+          <tr>
+            <td>${i+1}</td>
+            <td>${new Date(s.ts).toLocaleString('ru-RU')}</td>
+            <td class="num"><span class="pill ${irpClass(s.irp)}">${s.irp.toFixed(2)}%</span></td>
+            <td class="num">${s.articles}</td>
+            <td class="num">${s.orders.toLocaleString('ru-RU')}</td>
+          </tr>
+        `).join('')}</tbody>
+      </table>
+    `;
+  }
+
+  // прогресс ДЛ по топам
+  const dlEl = document.getElementById('dlProgress');
+  if (!state.articles.length) {
+    dlEl.innerHTML = '<p class="muted">Нет данных.</p>';
+    return;
+  }
+  const { totalOrders } = computeIrp(state.articles);
+  const top = [...state.articles]
+    .sort((a,b) => contributionOf(b,totalOrders) - contributionOf(a,totalOrders))
+    .slice(0, 8);
+  dlEl.innerHTML = top.map(a => {
+    const pct = Math.min(100, (a.dl/60)*100);
+    const label = a.dl >= 60 ? '<span class="pill ok">достигнуто</span>' : '<span class="pill bad">ниже цели</span>';
+    return `
+      <div style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:13px">
+          <span>${a.nmId} · ${a.orders} заказ.</span>
+          <span>ДЛ ${a.dl}% · ${label}</span>
+        </div>
+        <div class="progress-bar"><span style="width:${pct}%"></span></div>
+      </div>
+    `;
+  }).join('');
+}
+
+document.getElementById('btnSnapshot').addEventListener('click', () => {
+  if (!state.articles.length) { alert('Нет данных'); return; }
+  const { irp, totalOrders } = computeIrp(state.articles);
+  const snaps = loadSnapshots();
+  snaps.push({ ts: Date.now(), irp, articles: state.articles.length, orders: totalOrders });
+  saveSnapshots(snaps);
+  renderProgress();
+});
+document.getElementById('btnClearSnaps').addEventListener('click', () => {
+  if (confirm('Удалить всю историю снимков?')) {
+    localStorage.removeItem('irp_snapshots');
+    renderProgress();
+  }
+});
+
+/* =========================================================
+   ЭКОНОМИКА
+   ========================================================= */
+document.getElementById('btnEcon').addEventListener('click', () => {
+  const arts = state.articles;
+  const container = document.getElementById('econResult');
+  if (!arts.length) {
+    container.innerHTML = '<div class="card warn">Нет данных.</div>';
+    return;
+  }
+  const { irp, totalOrders } = computeIrp(arts);
+  const avgPrice = Number(document.getElementById('avgPrice').value) || 0;
+  const buyoutPct = (Number(document.getElementById('buyoutPct').value) || 0) / 100;
+  const il = Number(document.getElementById('il').value) || 1;
+
+  // заказы за период → в месяц (примерно)
+  const ordersPerMonth = totalOrders / 3; // окно 13 недель ≈ 3 мес
+  const buyoutsPerMonth = ordersPerMonth * buyoutPct;
+  const revenue = buyoutsPerMonth * avgPrice;
+
+  // модель потерь: КРП применяется к обороту как надбавка логистики
+  const lossNow = revenue * (irp/100) * il;
+  const lossGoal = revenue * (0.05/100) * il;
+  const saveMonth = lossNow - lossGoal;
+  const saveYear = saveMonth * 12;
+
+  // риск при росте ИЛ до 1.2
+  const ilBad = 1.2;
+  const lossBad = revenue * (irp/100) * ilBad;
+
+  const fmt = n => Math.round(n).toLocaleString('ru-RU') + ' ₽';
+
+  container.innerHTML = `
+    <div class="card accent">
+      <h3 style="margin-top:0">Экономика при текущих показателях</h3>
+      <div class="stat-grid">
+        <div class="stat">
+          <div class="k">Выкупов / мес</div>
+          <div class="v">${Math.round(buyoutsPerMonth).toLocaleString('ru-RU')}</div>
+        </div>
+        <div class="stat">
+          <div class="k">Оборот / мес</div>
+          <div class="v">${fmt(revenue)}</div>
+        </div>
+        <div class="stat">
+          <div class="k">Потери сейчас</div>
+          <div class="v bad">${fmt(lossNow)}</div>
+          <div class="note">ИРП ${irp.toFixed(2)}% · ИЛ ${il}</div>
+        </div>
+        <div class="stat">
+          <div class="k">При цели &lt; 0,1%</div>
+          <div class="v ok">${fmt(lossGoal)}</div>
+        </div>
+      </div>
+      <div class="info">
+        <div>
+          <strong>Экономия в месяц: ${fmt(saveMonth)}</strong><br>
+          Экономия в год: <strong style="color:var(--accent)">${fmt(saveYear)}</strong>
+        </div>
+      </div>
+      <div class="info danger">
+        <div>
+          <strong>Риск.</strong> Если ИЛ подрастёт до 1,2 при текущем ИРП, потери станут <strong>${fmt(lossBad)}/мес</strong>. Это ещё +${fmt(lossBad-lossNow)} сверху — чистый повод действовать быстрее.
+        </div>
+      </div>
+      <p class="muted" style="margin-top:14px">Модель: потери ≈ оборот × ИРП × ИЛ. Это приближение — реальная формула WB сложнее, но порядок цифр честный.</p>
+    </div>
+  `;
+});
+
+/* =========================================================
+   ЗАГРУЗКА ДАННЫХ
+   ========================================================= */
+function setMode(m) {
+  state.mode = m;
+  const badge = document.getElementById('modeBadge');
+  badge.className = 'mode-badge ' + m;
+  badge.textContent = 'режим: ' + m;
+}
+
+document.getElementById('btnDemo').addEventListener('click', () => {
+  state.articles = DEMO_ARTICLES.map(a => ({ ...a }));
+  setMode('demo');
+  CabinetManager.saveData();
+  renderDiagnostics();
+  renderProgress();
+  document.querySelector('[data-tab="diag"]').click();
+});
+
+document.getElementById('btnManual').addEventListener('click', () => {
+  const raw = document.getElementById('manualData').value.trim();
+  if (!raw) { alert('Вставь CSV с ДЛ'); return; }
+  let dlMap = new Map();
+  try {
+    const lines = raw.split(/\r?\n/).filter(l => l.trim());
+    const header = lines[0].toLowerCase().split(',').map(s => s.trim());
+    const idxNm = header.indexOf('nmid');
+    const idxDl = header.indexOf('dl');
+    if (idxNm < 0 || idxDl < 0) {
+      throw new Error('CSV должен содержать колонки nmId и dl');
+    }
+    for (const line of lines.slice(1)) {
+      const cells = line.split(',').map(s => s.trim());
+      const nm = Number(cells[idxNm]);
+      const dl = Number(cells[idxDl]);
+      if (nm && !isNaN(dl)) dlMap.set(nm, dl);
+    }
+  } catch (e) {
+    alert('Ошибка разбора: ' + e.message);
+    return;
+  }
+
+  if (!state.articles || !state.articles.length) {
+    // Если синхронизации ещё не было — создаём артикулы из одних только ДЛ
+    state.articles = [...dlMap.entries()].map(([nmId, dl]) => ({
+      nmId, orders: 0, dl, regions: {},
+    }));
+    setMode('manual');
+  } else {
+    // Мёрджим в существующие артикулы
+    let updated = 0;
+    for (const a of state.articles) {
+      if (dlMap.has(a.nmId)) {
+        a.dl = dlMap.get(a.nmId);
+        updated++;
+      }
+    }
+    // Также обновляем sizeData если есть
+    if (state.sizeData && state.sizeData.length) {
+      for (const s of state.sizeData) {
+        if (dlMap.has(s.nmId)) s.dl = dlMap.get(s.nmId);
+      }
+    }
+    alert(`ДЛ обновлена для ${updated} из ${state.articles.length} артикулов`);
+  }
+
+  CabinetManager.saveData();
+  renderDiagnostics();
+  renderProgress();
+  document.querySelector('[data-tab="diag"]').click();
+});
+
+document.getElementById('btnSync').addEventListener('click', syncCabinet);
+
+/* =========================================================
+   ПРОКСИ CODE
+   ========================================================= */
+document.getElementById('proxyCode').textContent = `// proxy.js — запусти: node proxy.js
+// Решает проблему CORS: браузер ходит на localhost, прокси — на WB.
+import http from 'http';
+import https from 'https';
+import { URL } from 'url';
+
+const PORT = 8787;
+
+http.createServer((req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+  if (req.method === 'OPTIONS') { res.end(); return; }
+
+  const u = new URL(req.url, 'http://localhost');
+  const target = u.searchParams.get('url');
+  if (!target) { res.writeHead(400); res.end('missing url'); return; }
+
+  const parsed = new URL(target);
+  if (!parsed.hostname.endsWith('wildberries.ru')) {
+    res.writeHead(403); res.end('only wildberries.ru'); return;
+  }
+
+  const opts = {
+    method: req.method,
+    headers: { Authorization: req.headers.authorization || '' },
+  };
+  const proxyReq = https.request(parsed, opts, proxyRes => {
+    res.writeHead(proxyRes.statusCode, { 'Content-Type': 'application/json' });
+    proxyRes.pipe(res);
+  });
+  proxyReq.on('error', e => { res.writeHead(502); res.end(e.message); });
+  proxyReq.end();
+}).listen(PORT, () => console.log('proxy on http://localhost:' + PORT));`;
+
+/* =========================================================
+   ПЕРЕРАСПРЕДЕЛЕНИЕ — ядро
+   ========================================================= */
+
+function parseCsv(text, cols) {
+  const lines = text.trim().split(/\r?\n/).filter(l => l.trim() && !l.startsWith('#'));
+  if (lines.length < 2) return [];
+  const header = lines[0].toLowerCase().split(',').map(s => s.trim());
+  const idx = {};
+  for (const c of cols) idx[c] = header.indexOf(c.toLowerCase());
+  return lines.slice(1).map(line => {
+    const cells = line.split(',').map(s => s.trim());
+    const row = {};
+    for (const c of cols) {
+      const v = cells[idx[c]] ?? '';
+      const n = Number(v);
+      row[c] = (v !== '' && !isNaN(n)) ? n : v;
+    }
+    return row;
+  }).filter(r => r.nmId || r[cols[0]]);
+}
+
+function findWarehouseForRegion(region) {
+  if (!region) return null;
+  const fast = getFastestWarehouse(region);
+  if (!fast) return null;
+  return { name: fast.name, hours: fast.hours, city: fast.city };
+}
+
+function computeRedistribution(stockRows, orderRows, opts) {
+  const growth = 1 + (opts.growthPct / 100);
+  const minGap = opts.minGap;
+  const bufferPct = opts.bufferPct / 100;
+
+  // Группируем остатки: ключ nmId|warehouse → {total, sizes:{}}
+  const stockMap = new Map();
+  for (const s of stockRows) {
+    if (!s.nmId || !s.warehouse) continue;
+    const key = s.nmId + '|' + s.warehouse;
+    if (!stockMap.has(key)) {
+      stockMap.set(key, { nmId: s.nmId, warehouse: s.warehouse, total: 0, sizes: {} });
+    }
+    const e = stockMap.get(key);
+    const q = Number(s.qty) || 0;
+    e.total += q;
+    e.sizes[s.size] = (e.sizes[s.size] || 0) + q;
+  }
+
+  // Прогноз по заказам: nmId → [{region, forecast, lastWeek, targetWh}]
+  const forecasts = [];
+  for (const o of orderRows) {
+    if (!o.nmId || !o.region) continue;
+    const lastWeek = Number(o.orders) || 0;
+    const forecast = Math.ceil(lastWeek * growth);
+    const targetWh = findWarehouseForRegion(o.region);
+    forecasts.push({ nmId: o.nmId, region: o.region, lastWeek, forecast, targetWh });
+  }
+
+  const tasks = [];
+  const unresolved = [];
+
+  // Сортируем прогнозы по убыванию дефицита (сначала самые горящие)
+  for (const f of forecasts) {
+    if (!f.targetWh) {
+      unresolved.push({ ...f, reason: 'Нет склада WB для этого региона в карте' });
+      continue;
+    }
+    const targetKey = f.nmId + '|' + f.targetWh.name;
+    const targetEntry = stockMap.get(targetKey);
+    const currentAtTarget = targetEntry ? targetEntry.total : 0;
+    const gap = f.forecast - currentAtTarget;
+    if (gap < minGap) continue;
+
+    // Кандидаты-доноры: склады с этим артикулом, кроме целевого, с остатком > буфера
+    const donors = [...stockMap.values()]
+      .filter(s => s.nmId === f.nmId && s.warehouse !== f.targetWh.name && s.total > 0)
+      .sort((a, b) => b.total - a.total);
+
+    let remaining = gap;
+    for (const donor of donors) {
+      if (remaining <= 0) break;
+      const available = Math.max(0, Math.floor(donor.total * (1 - bufferPct)));
+      if (available <= 0) continue;
+      const take = Math.min(remaining, available);
+      if (take <= 0) continue;
+
+      // Распределяем по размерам пропорционально остаткам донора
+      const sizesToMove = {};
+      let moved = 0;
+      const sizeEntries = Object.entries(donor.sizes)
+        .filter(([, q]) => q > 0)
+        .sort((a, b) => b[1] - a[1]);
+      for (const [sz, qty] of sizeEntries) {
+        const portion = Math.round((qty / donor.total) * take);
+        const actual = Math.min(portion, qty);
+        if (actual > 0) {
+          sizesToMove[sz] = actual;
+          moved += actual;
+        }
+      }
+      // Корректировка округления
+      while (moved < take) {
+        let added = false;
+        for (const [sz, qty] of sizeEntries) {
+          if (moved >= take) break;
+          const used = sizesToMove[sz] || 0;
+          if (used < qty) {
+            sizesToMove[sz] = used + 1;
+            moved++;
+            added = true;
+          }
+        }
+        if (!added) break;
+      }
+      while (moved > take) {
+        for (const sz of Object.keys(sizesToMove)) {
+          if (moved <= take) break;
+          if (sizesToMove[sz] > 0) { sizesToMove[sz]--; moved--; }
+        }
+      }
+
+      tasks.push({
+        nmId: f.nmId,
+        fromWh: donor.warehouse,
+        fromStock: donor.total,
+        toWh: f.targetWh.name,
+        region: f.region,
+        lastWeek: f.lastWeek,
+        forecast: f.forecast,
+        currentAtTarget,
+        gap,
+        qty: moved,
+        sizes: sizesToMove,
+      });
+
+      // Уменьшаем остаток донора, чтобы не использовать повторно
+      donor.total -= moved;
+      for (const [sz, q] of Object.entries(sizesToMove)) {
+        donor.sizes[sz] -= q;
+      }
+      remaining -= moved;
+    }
+
+    if (remaining > 0) {
+      unresolved.push({
+        ...f,
+        reason: `Не хватило донора. Покрыто ${gap - remaining} из ${gap}`,
+      });
+    }
+  }
+
+  // Сортируем заявки: сначала самый большой дефицит
+  tasks.sort((a, b) => b.gap - a.gap);
+  return { tasks, unresolved };
+}
+
+function priorityBadge(gap) {
+  if (gap >= 20) return '<span class="pill bad">HIGH</span>';
+  if (gap >= 10) return '<span class="pill warn">MED</span>';
+  return '<span class="pill ok">LOW</span>';
+}
+
+function renderRedistTasks(result) {
+  const { tasks, unresolved } = result;
+  const container = document.getElementById('redistResult');
+  if (!tasks.length && !unresolved.length) {
+    container.innerHTML = '<div class="card"><p class="muted">Заявок нет — либо данных мало, либо на всех целевых складах уже достаточно стока.</p></div>';
+    return;
+  }
+
+  const rows = tasks.map((t, i) => {
+    const sizesStr = Object.entries(t.sizes)
+      .sort((a, b) => Number(a[0]) - Number(b[0]))
+      .map(([sz, q]) => `<strong style="font-weight:500">${sz}</strong>:${q}`)
+      .join(' · ');
+    return `
+      <tr>
+        <td style="color:var(--text-soft);width:28px">${i + 1}</td>
+        <td>${priorityBadge(t.gap)}</td>
+        <td>${photoCell(t.nmId)}</td>
+        <td>${t.fromWh}<div class="muted" style="font-size:11px">остаток ${t.fromStock + t.qty}</div></td>
+        <td>${t.toWh}<div class="muted" style="font-size:11px">${t.region}</div></td>
+        <td class="num">${t.lastWeek} → <strong style="color:var(--accent);font-weight:500">${t.forecast}</strong></td>
+        <td class="num">${t.currentAtTarget}</td>
+        <td class="num"><strong style="font-weight:500">${t.qty}</strong></td>
+        <td style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px">${sizesStr}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const totalUnits = tasks.reduce((s, t) => s + t.qty, 0);
+  const uniqueArts = new Set(tasks.map(t => t.nmId)).size;
+
+  const unresolvedHtml = unresolved.length ? `
+    <div class="card warn" style="margin-top:20px">
+      <h3 style="margin-top:0">Непокрытые потребности (${unresolved.length})</h3>
+      <table>
+        <thead><tr><th>Артикул</th><th>Регион</th><th class="num">Прогноз</th><th>Причина</th></tr></thead>
+        <tbody>${unresolved.map(u => `
+          <tr>
+            <td>${photoCell(u.nmId)}</td>
+            <td>${u.region}</td>
+            <td class="num">${u.forecast}</td>
+            <td class="muted">${u.reason}</td>
+          </tr>
+        `).join('')}</tbody>
+      </table>
+    </div>
+  ` : '';
+
+  container.innerHTML = `
+    <div class="stat-grid">
+      <div class="stat"><div class="k">Заявок</div><div class="v">${tasks.length}</div></div>
+      <div class="stat"><div class="k">Артикулов</div><div class="v">${uniqueArts}</div></div>
+      <div class="stat"><div class="k">Всего штук</div><div class="v">${totalUnits}</div></div>
+      <div class="stat"><div class="k">Непокрыто</div><div class="v ${unresolved.length ? 'bad' : 'ok'}">${unresolved.length}</div></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Заявки на перераспределение</h3>
+      <p class="muted" style="margin-bottom:14px">Отсортированы по приоритету. HIGH — дефицит ≥20 шт, MED — 10–19, LOW — менее 10.</p>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>Приор.</th><th>Артикул</th>
+              <th>Откуда</th><th>Куда / регион</th>
+              <th class="num">Пр.нед → прогноз</th>
+              <th class="num">На целев.</th>
+              <th class="num">К отправке</th>
+              <th>Размеры</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>
+    ${unresolvedHtml}
+  `;
+
+  // сохраняем последний результат для экспорта
+  window.__lastRedist = result;
+}
+
+/* ---- DEMO данные ---- */
+const DEMO_STOCK_CSV = `nmId,warehouse,size,qty
+18475621,Коледино,40,45
+18475621,Коледино,41,60
+18475621,Коледино,42,52
+18475621,Коледино,43,38
+18475621,Коледино,44,20
+18475621,Казань,40,2
+18475621,Казань,41,3
+18475621,Новосибирск,42,4
+18475621,Екатеринбург,41,1
+29384756,Коледино,39,35
+29384756,Коледино,40,48
+29384756,Коледино,41,40
+29384756,Коледино,42,25
+29384756,Екатеринбург,39,0
+29384756,Екатеринбург,40,2
+47586920,Коледино,43,55
+47586920,Коледино,44,42
+47586920,Коледино,45,30
+47586920,Новосибирск,43,4
+47586920,Хабаровск,44,2`;
+
+const DEMO_ORDERS_CSV = `nmId,region,orders
+18475621,Приволжский,15
+18475621,Сибирский,22
+18475621,Уральский,14
+18475621,Южный,9
+29384756,Уральский,12
+29384756,Сибирский,8
+29384756,Приволжский,6
+47586920,Сибирский,18
+47586920,Дальневосточный,14
+47586920,Уральский,7`;
+
+document.getElementById('btnRedistDemo').addEventListener('click', () => {
+  document.getElementById('stockCsv').value = DEMO_STOCK_CSV;
+  document.getElementById('ordersCsv').value = DEMO_ORDERS_CSV;
+});
+
+document.getElementById('btnRedist').addEventListener('click', () => {
+  const stockText = document.getElementById('stockCsv').value;
+  const ordersText = document.getElementById('ordersCsv').value;
+  if (!stockText.trim() || !ordersText.trim()) {
+    alert('Заполни оба поля: остатки и заказы');
+    return;
+  }
+  let stock, orders;
+  try {
+    stock = parseCsv(stockText, ['nmId', 'warehouse', 'size', 'qty']);
+    orders = parseCsv(ordersText, ['nmId', 'region', 'orders']);
+  } catch (e) {
+    alert('Ошибка разбора CSV: ' + e.message);
+    return;
+  }
+  const opts = {
+    growthPct: Number(document.getElementById('growthPct').value) || 0,
+    minGap: Number(document.getElementById('minGap').value) || 0,
+    bufferPct: Number(document.getElementById('sourceBuffer').value) || 0,
+  };
+  const result = computeRedistribution(stock, orders, opts);
+  renderRedistTasks(result);
+});
+
+document.getElementById('btnRedistExport').addEventListener('click', () => {
+  const result = window.__lastRedist;
+  if (!result || !result.tasks.length) { alert('Сначала построй заявки'); return; }
+  const rows = [['nmId', 'priority', 'from_warehouse', 'to_warehouse', 'region', 'last_week', 'forecast', 'current_at_target', 'qty', 'sizes']];
+  for (const t of result.tasks) {
+    const prio = t.gap >= 20 ? 'HIGH' : (t.gap >= 10 ? 'MED' : 'LOW');
+    const sizes = Object.entries(t.sizes).map(([s, q]) => `${s}:${q}`).join('|');
+    rows.push([t.nmId, prio, t.fromWh, t.toWh, t.region, t.lastWeek, t.forecast, t.currentAtTarget, t.qty, sizes]);
+  }
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const date = new Date().toISOString().slice(0, 10);
+  a.href = url; a.download = `redistribution-${date}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('btnRedistSave').addEventListener('click', () => {
+  const result = window.__lastRedist;
+  if (!result || !result.tasks.length) { alert('Сначала построй заявки'); return; }
+  const key = 'irp_redist_daily';
+  let all = [];
+  try { all = JSON.parse(localStorage.getItem(key) || '[]'); } catch {}
+  all.push({
+    ts: Date.now(),
+    tasks: result.tasks.length,
+    totalUnits: result.tasks.reduce((s, t) => s + t.qty, 0),
+    unresolved: result.unresolved.length,
+  });
+  localStorage.setItem(key, JSON.stringify(all));
+  alert('Снимок сохранён. Всего дневных снимков: ' + all.length);
+});
+
+/* =========================================================
+   ДЕТАЛИ ПО РАЗМЕРАМ — отчёт из скриншота кабинета
+   ========================================================= */
+
+const DETAILS_DEMO_CSV = `nmId,size,orders,stock,dl
+C-321,9,142,18,47.18
+C-321,10,124,37,58.87
+C-321,8,103,59,44.66
+C-321,7,88,56,39.77
+C-321,3,14,0,85.71
+C-321,4,18,2,83.33
+C-321,5,35,35,60.00
+C-321,6,70,42,62.86
+C-340,3,132,7,52.27
+C-340,4,132,12,46.21
+C-340,6,61,9,52.46
+C-340,2,52,13,48.08
+C-340,1,23,3,69.57
+C-340,5,106,10,72.64`;
+
+function computeDetailsReport(rows) {
+  // Группируем по артикулу
+  const byArt = new Map();
+  for (const r of rows) {
+    if (!byArt.has(r.nmId)) byArt.set(r.nmId, []);
+    byArt.get(r.nmId).push(r);
+  }
+
+  // Считаем общие итоги
+  let grandOrders = 0;
+  for (const r of rows) grandOrders += Number(r.orders) || 0;
+
+  const articles = [];
+  for (const [nmId, sizes] of byArt) {
+    const artOrders = sizes.reduce((s, r) => s + (Number(r.orders) || 0), 0);
+    const artStock = sizes.reduce((s, r) => s + (Number(r.stock) || 0), 0);
+    // Взвешенная ДЛ по заказам
+    const weightedDl = artOrders > 0
+      ? sizes.reduce((s, r) => s + (Number(r.dl) || 0) * (Number(r.orders) || 0), 0) / artOrders
+      : 0;
+    const artKrp = krpForDl(weightedDl);
+    const artKtr = ktrForDl(weightedDl);
+    // Вклад артикула в общий ИРП/ИЛ
+    const irpContribArt = grandOrders > 0 ? (artOrders * artKrp / grandOrders) : 0;
+    const ilContribArt  = grandOrders > 0 ? (artOrders * artKtr / grandOrders) : 0;
+
+    // Строки по размерам
+    const sizeRows = sizes.map(r => {
+      const orders = Number(r.orders) || 0;
+      const stock = Number(r.stock) || 0;
+      const dl = Number(r.dl) || 0;
+      const krp = krpForDl(dl);
+      const ktr = ktrForDl(dl);
+      // Оборачиваемость (дни) — приближение: stock × 30 / max(1, orders)
+      const turnover = orders > 0 ? Math.round(stock * 30 / orders) : 0;
+      // Рекомендация «отгрузить»: закрываем дефицит + 15% на рост
+      const forecast = Math.ceil(orders * 1.15);
+      const toShip = Math.max(0, forecast - stock);
+      // Вклад в ИРП (в общей шкале)
+      const irpContrib = grandOrders > 0 ? (orders * krp / grandOrders) : 0;
+      const ilContrib  = grandOrders > 0 ? (orders * ktr / grandOrders) : 0;
+      return {
+        ...r,
+        orders, stock, dl, krp, ktr, turnover, toShip,
+        irpContrib, ilContrib,
+      };
+    }).sort((a, b) => b.orders - a.orders);
+
+    articles.push({
+      nmId,
+      orders: artOrders,
+      stock: artStock,
+      dl: weightedDl,
+      krp: artKrp,
+      ktr: artKtr,
+      irpContrib: irpContribArt,
+      ilContrib: ilContribArt,
+      sizes: sizeRows,
+    });
+  }
+
+  // Сортируем артикулы по вкладу в ИРП (сначала виновники)
+  articles.sort((a, b) => b.irpContrib - a.irpContrib);
+
+  // Итого
+  const totalIrp = articles.reduce((s, a) => s + a.irpContrib, 0);
+  const totalIl  = articles.reduce((s, a) => s + a.ilContrib, 0);
+  const totalStock = articles.reduce((s, a) => s + a.stock, 0);
+
+  return { articles, grandOrders, totalIrp, totalIl, totalStock };
+}
+
+function renderDetailsReport(rep) {
+  const c = document.getElementById('detailsResult');
+  if (!rep.articles.length) {
+    c.innerHTML = '<div class="card"><p class="muted">Нет данных.</p></div>';
+    return;
+  }
+
+  // Верхняя плашка как в кабинете
+  const header = `
+    <div class="card accent" style="padding:18px 24px;margin-bottom:18px">
+      <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:center;font-family:'JetBrains Mono',monospace">
+        <div><span class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em">Общие данные</span></div>
+        <div>ИЛ <strong style="color:var(--accent);font-size:18px">${rep.totalIl.toFixed(2)}</strong></div>
+        <div>ИРП <strong style="color:var(--accent);font-size:18px">${rep.totalIrp.toFixed(2)}%</strong></div>
+        <div class="muted">Заказов: ${rep.grandOrders.toLocaleString('ru-RU')}</div>
+        <div class="muted">Остаток: ${rep.totalStock.toLocaleString('ru-RU')}</div>
+      </div>
+    </div>
+  `;
+
+  // Таблица: артикул-группа + строки размеров
+  let body = '';
+  for (const a of rep.articles) {
+    const dlClass = a.dl >= 60 ? 'ok' : (a.dl >= 45 ? 'warn' : 'bad');
+    // Строка артикула (шапка группы)
+    body += `
+      <tr style="background:var(--surface-2)">
+        <td>${photoCell(a.nmId, a.sizes.length + ' размеров · ' + a.orders + ' заказов')}</td>
+        <td class="num">—</td>
+        <td class="num" style="font-weight:500">${a.orders}</td>
+        <td class="num" style="font-weight:500">${a.stock}</td>
+        <td class="num muted">—</td>
+        <td class="num muted">—</td>
+        <td class="num"><span class="pill ${dlClass}">${a.dl.toFixed(2)}%</span></td>
+        <td class="num">${a.ktr.toFixed(2)}</td>
+        <td class="num">${a.krp.toFixed(2)}%</td>
+        <td class="num" style="font-weight:500">${a.ilContrib.toFixed(2)}</td>
+        <td class="num" style="font-weight:500;color:var(--accent)">${a.irpContrib.toFixed(2)}%</td>
+      </tr>
+    `;
+    // Строки размеров
+    for (const s of a.sizes) {
+      const sDlClass = s.dl >= 60 ? 'ok' : (s.dl >= 45 ? 'warn' : 'bad');
+      body += `
+        <tr>
+          <td style="padding-left:64px" class="muted">└ размер</td>
+          <td class="num" style="font-weight:500">${s.size}</td>
+          <td class="num">${s.orders}</td>
+          <td class="num">${s.stock}</td>
+          <td class="num">${s.turnover}</td>
+          <td class="num">${s.toShip > 0 ? '<span style="color:var(--warn);font-weight:500">'+s.toShip+'</span>' : '0'}</td>
+          <td class="num"><span class="pill ${sDlClass}">${s.dl.toFixed(2)}%</span></td>
+          <td class="num">${s.ktr.toFixed(2)}</td>
+          <td class="num">${s.krp.toFixed(2)}%</td>
+          <td class="num">${s.ilContrib.toFixed(2)}</td>
+          <td class="num">${s.irpContrib.toFixed(2)}%</td>
+        </tr>
+      `;
+    }
+  }
+
+  c.innerHTML = header + `
+    <div class="card" style="padding:12px 0">
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Артикул</th>
+              <th class="num">Размер</th>
+              <th class="num">Заказов</th>
+              <th class="num">Остаток</th>
+              <th class="num">Оборач. (дн)</th>
+              <th class="num">Отгрузить</th>
+              <th class="num">ДЛ</th>
+              <th class="num">КТР</th>
+              <th class="num">КРП</th>
+              <th class="num">влияние ИЛ</th>
+              <th class="num">влияние ИРП ↓</th>
+            </tr>
+          </thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+      <p class="muted" style="padding:12px 20px 0;font-size:12px">
+        Строки отсортированы по убыванию влияния на ИРП — сверху самые «дорогие» артикулы.
+        КТР — аппроксимация по ДЛ (точную таблицу WB не публикует, но совпадает со скриншотами ±0.05).
+        «Отгрузить» = прогноз×1,15 − остаток.
+      </p>
+    </div>
+  `;
+}
+
+document.getElementById('btnDetailsDemo').addEventListener('click', () => {
+  document.getElementById('detailsCsv').value = DETAILS_DEMO_CSV;
+});
+
+document.getElementById('btnDetails').addEventListener('click', () => {
+  const raw = document.getElementById('detailsCsv').value;
+  if (!raw.trim()) { alert('Заполни CSV'); return; }
+  let rows;
+  try {
+    rows = parseCsv(raw, ['nmId', 'size', 'orders', 'stock', 'dl']);
+  } catch (e) {
+    alert('Ошибка разбора: ' + e.message);
+    return;
+  }
+  const rep = computeDetailsReport(rows);
+  renderDetailsReport(rep);
+});
+
+/* =========================================================
+   МЕНЕДЖЕР КАБИНЕТОВ
+   Каждый кабинет = отдельный магазин WB со своими данными.
+   Хранится в localStorage. Данные per-cabinet под ключом irp_data_{id}
+   ========================================================= */
+const CabinetManager = {
+  list() {
+    try {
+      const raw = localStorage.getItem('irp_cabinets');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length) return parsed;
+      }
+    } catch {}
+    return this._init();
+  },
+  _init() {
+    const def = [{ id: 'cab_main', name: 'Основной', token: '', proxy: '', lastSync: 0, createdAt: Date.now() }];
+    localStorage.setItem('irp_cabinets', JSON.stringify(def));
+    localStorage.setItem('irp_active', 'cab_main');
+    return def;
+  },
+  activeId() {
+    const id = localStorage.getItem('irp_active');
+    if (id && this.list().some(c => c.id === id)) return id;
+    return this.list()[0].id;
+  },
+  active() {
+    const id = this.activeId();
+    return this.list().find(c => c.id === id) || this.list()[0];
+  },
+  saveCabinet(cab) {
+    const list = this.list();
+    const i = list.findIndex(c => c.id === cab.id);
+    if (i >= 0) list[i] = cab;
+    localStorage.setItem('irp_cabinets', JSON.stringify(list));
+  },
+  updateActive(patch) {
+    const cab = this.active();
+    Object.assign(cab, patch);
+    this.saveCabinet(cab);
+    renderCabinetUI();
+  },
+  switch(id) {
+    localStorage.setItem('irp_active', id);
+    this.loadActiveData();
+    this.fillSyncInputs();
+    renderCabinetUI();
+    renderDiagnostics();
+    renderProgress();
+  },
+  add(name) {
+    const list = this.list();
+    const id = 'cab_' + Date.now();
+    list.push({ id, name, token: '', proxy: '', lastSync: 0, createdAt: Date.now() });
+    localStorage.setItem('irp_cabinets', JSON.stringify(list));
+    this.switch(id);
+  },
+  rename(id, name) {
+    const list = this.list();
+    const c = list.find(x => x.id === id);
+    if (c) {
+      c.name = name;
+      localStorage.setItem('irp_cabinets', JSON.stringify(list));
+      renderCabinetUI();
+    }
+  },
+  remove(id) {
+    let list = this.list();
+    if (list.length <= 1) {
+      alert('Должен остаться хотя бы один кабинет');
+      return;
+    }
+    list = list.filter(c => c.id !== id);
+    localStorage.setItem('irp_cabinets', JSON.stringify(list));
+    localStorage.removeItem('irp_data_' + id);
+    if (this.activeId() === id) {
+      localStorage.setItem('irp_active', list[0].id);
+      this.loadActiveData();
+      this.fillSyncInputs();
+    }
+    renderCabinetUI();
+    renderDiagnostics();
+    renderProgress();
+  },
+  saveData() {
+    const id = this.activeId();
+    const data = {
+      articles: state.articles || [],
+      sizeData: state.sizeData || [],
+      stockRows: state.stockRows || [],
+      orderRows: state.orderRows || [],
+      mode: state.mode || 'demo',
+      savedAt: Date.now(),
+    };
+    try {
+      localStorage.setItem('irp_data_' + id, JSON.stringify(data));
+    } catch (e) {
+      console.warn('Cabinet save failed (likely quota):', e);
+      // При нехватке места — сохраняем только ключевые
+      try {
+        const mini = { articles: data.articles, mode: data.mode, savedAt: data.savedAt };
+        localStorage.setItem('irp_data_' + id, JSON.stringify(mini));
+      } catch {}
+    }
+  },
+  loadActiveData() {
+    const id = this.activeId();
+    try {
+      const raw = localStorage.getItem('irp_data_' + id);
+      if (raw) {
+        const d = JSON.parse(raw);
+        state.articles = d.articles || [];
+        state.sizeData = d.sizeData || [];
+        state.stockRows = d.stockRows || [];
+        state.orderRows = d.orderRows || [];
+        state.mode = d.mode || 'demo';
+        setMode(state.mode);
+        return;
+      }
+    } catch {}
+    state.articles = [];
+    state.sizeData = [];
+    state.stockRows = [];
+    state.orderRows = [];
+    state.mode = 'demo';
+    setMode('demo');
+  },
+  // Заполняет поля токена и прокси из активного кабинета
+  fillSyncInputs() {
+    const cab = this.active();
+    const tok = document.getElementById('token');
+    const prx = document.getElementById('proxyUrl');
+    if (tok) tok.value = cab.token || '';
+    if (prx) prx.value = cab.proxy || '';
+  },
+};
+
+function relativeTime(ts) {
+  if (!ts) return 'никогда';
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'только что';
+  if (mins < 60) return mins + ' мин назад';
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return hours + ' ч назад';
+  const days = Math.floor(hours / 24);
+  return days + ' дн назад';
+}
+
+/* =========================================================
+   СИНХРОНИЗАЦИЯ КАБИНЕТА С WB API
+   Одним кликом тянет заказы и остатки, обрабатывает,
+   раздаёт во все вкладки.
+   ========================================================= */
+async function syncCabinet() {
+  const cab = CabinetManager.active();
+  const token = document.getElementById('token').value.trim();
+  const proxy = document.getElementById('proxyUrl').value.trim();
+  const days = Number(document.getElementById('daysBack').value) || 30;
+
+  if (!token) {
+    alert('Сначала введи API-токен Wildberries (категории: Статистика + Контент)');
+    return;
+  }
+
+  // Сохраняем токен и прокси в кабинете
+  CabinetManager.updateActive({ token, proxy });
+
+  const logEl = document.getElementById('syncLog');
+  const btn = document.getElementById('btnSync');
+  if (logEl) logEl.innerHTML = '';
+  const log = (msg, cls) => {
+    if (!logEl) return;
+    const time = new Date().toLocaleTimeString('ru-RU');
+    const color = cls === 'ok' ? 'var(--ok)' : cls === 'bad' ? 'var(--danger)' : 'var(--text-dim)';
+    logEl.innerHTML += `<div style="color:${color};font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;padding:2px 0"><span style="color:var(--text-soft)">${time}</span> · ${msg}</div>`;
+    logEl.scrollTop = logEl.scrollHeight;
+  };
+
+  btn.disabled = true;
+  btn.textContent = 'Синхронизирую...';
+
+  async function wbFetch(url) {
+    const finalUrl = proxy ? proxy + '?url=' + encodeURIComponent(url) : url;
+    const res = await fetch(finalUrl, { headers: { Authorization: token } });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error('HTTP ' + res.status + ' ' + body.slice(0, 100));
+    }
+    return res.json();
+  }
+
+  try {
+    log('Начинаю синхронизацию для кабинета «' + cab.name + '»');
+    log('Окно: последние ' + days + ' дней');
+
+    const dateFrom = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString();
+
+    log('① Загружаю заказы с регионами и размерами...');
+    const ordersUrl = `https://statistics-api.wildberries.ru/api/v1/supplier/orders?dateFrom=${encodeURIComponent(dateFrom)}&flag=0`;
+    const orders = await wbFetch(ordersUrl);
+    if (!Array.isArray(orders)) throw new Error('API вернул неожиданный формат для заказов');
+    log('   получено: ' + orders.length + ' заказов', 'ok');
+
+    log('② Загружаю остатки по складам и размерам...');
+    const stocksUrl = `https://statistics-api.wildberries.ru/api/v1/supplier/stocks?dateFrom=${encodeURIComponent(dateFrom)}`;
+    const stocks = await wbFetch(stocksUrl);
+    if (!Array.isArray(stocks)) throw new Error('API вернул неожиданный формат для остатков');
+    log('   получено: ' + stocks.length + ' позиций', 'ok');
+
+    log('③ Обрабатываю и агрегирую...');
+    const processed = processRawData(orders, stocks);
+    log('   артикулов: ' + processed.articles.length, 'ok');
+    log('   строк по размерам: ' + processed.sizeData.length, 'ok');
+    log('   остатков: ' + processed.stockRows.length, 'ok');
+    log('   заказов по регионам за неделю: ' + processed.orderRows.length, 'ok');
+
+    // Пишем в state
+    state.articles = processed.articles;
+    state.sizeData = processed.sizeData;
+    state.stockRows = processed.stockRows;
+    state.orderRows = processed.orderRows;
+    setMode('live');
+
+    // Обновляем кабинет
+    CabinetManager.updateActive({ lastSync: Date.now() });
+    CabinetManager.saveData();
+
+    // Автозаполнение textarea в «Деталях» и «Перераспределении»
+    autofillSyncedCsvs();
+
+    log('✓ Готово. ИРП посчитается только если указана ДЛ (WB её через API не отдаёт).', 'ok');
+    log('Можно переключаться на любую вкладку — данные уже там', 'ok');
+
+    renderDiagnostics();
+    renderProgress();
+  } catch (e) {
+    log('✗ Ошибка: ' + e.message, 'bad');
+    if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
+      log('Скорее всего — CORS. Запусти локальный прокси (см. вкладку «Справка»).', 'bad');
+    } else if (e.message.includes('401')) {
+      log('Неверный токен или нет прав. Проверь категории токена: Статистика + Контент.', 'bad');
+    } else if (e.message.includes('429')) {
+      log('Превышен лимит API: 1 запрос в минуту. Подожди минуту и повтори.', 'bad');
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Синхронизировать с WB';
+  }
+}
+
+function processRawData(orders, stocks) {
+  // Фильтруем только активные заказы
+  const validOrders = orders.filter(o => !o.isCancel);
+
+  // 1. Агрегация по nmId для Диагностики
+  const byNm = new Map();
+  for (const o of validOrders) {
+    const nm = o.nmId;
+    if (!nm) continue;
+    if (!byNm.has(nm)) {
+      byNm.set(nm, {
+        nmId: nm,
+        name: o.subject || o.supplierArticle || '',
+        brand: o.brand || '',
+        orders: 0,
+        dl: 0, // ДЛ не в API
+        regions: {},
+      });
+    }
+    const a = byNm.get(nm);
+    a.orders++;
+    const reg = o.oblastOkrugName || o.regionName || 'Неизвестно';
+    a.regions[reg] = (a.regions[reg] || 0) + 1;
+  }
+  const articles = [...byNm.values()]
+    .sort((a, b) => b.orders - a.orders)
+    .slice(0, 200);
+
+  // 2. Размерный разрез для «Деталей»
+  const sizeMap = new Map();
+  for (const o of validOrders) {
+    if (!o.nmId) continue;
+    const size = o.techSize || 'one';
+    const key = o.nmId + '|' + size;
+    if (!sizeMap.has(key)) {
+      sizeMap.set(key, { nmId: o.nmId, size, orders: 0, stock: 0, dl: 0 });
+    }
+    sizeMap.get(key).orders++;
+  }
+  for (const s of stocks) {
+    if (!s.nmId) continue;
+    const size = s.techSize || 'one';
+    const key = s.nmId + '|' + size;
+    if (!sizeMap.has(key)) {
+      sizeMap.set(key, { nmId: s.nmId, size, orders: 0, stock: 0, dl: 0 });
+    }
+    sizeMap.get(key).stock += Number(s.quantity) || 0;
+  }
+  const sizeData = [...sizeMap.values()]
+    .filter(s => s.orders > 0 || s.stock > 0)
+    .sort((a, b) => b.orders - a.orders);
+
+  // 3. Остатки для «Перераспределения»
+  const stockRows = stocks
+    .filter(s => s.nmId && s.warehouseName && (Number(s.quantity) || 0) > 0)
+    .map(s => ({
+      nmId: s.nmId,
+      warehouse: s.warehouseName,
+      size: s.techSize || 'one',
+      qty: Number(s.quantity) || 0,
+    }));
+
+  // 4. Заказы за последнюю неделю по регионам (для «Перераспределения»)
+  const weekAgo = Date.now() - 7 * 24 * 3600 * 1000;
+  const lastWeekOrders = validOrders.filter(o => {
+    const d = o.date ? new Date(o.date).getTime() : 0;
+    return d >= weekAgo;
+  });
+  const orderRowsMap = new Map();
+  for (const o of lastWeekOrders) {
+    const reg = o.oblastOkrugName || o.regionName;
+    if (!reg || !o.nmId) continue;
+    const key = o.nmId + '|' + reg;
+    if (!orderRowsMap.has(key)) {
+      orderRowsMap.set(key, { nmId: o.nmId, region: reg, orders: 0 });
+    }
+    orderRowsMap.get(key).orders++;
+  }
+  const orderRows = [...orderRowsMap.values()].sort((a, b) => b.orders - a.orders);
+
+  return { articles, sizeData, stockRows, orderRows };
+}
+
+// Автоматически заполняет textarea в «Деталях» и «Перераспределении»
+// после удачной синхронизации
+function autofillSyncedCsvs() {
+  const detailsCsv = document.getElementById('detailsCsv');
+  if (detailsCsv && state.sizeData && state.sizeData.length) {
+    const rows = ['nmId,size,orders,stock,dl'];
+    for (const s of state.sizeData.slice(0, 500)) {
+      rows.push([s.nmId, s.size, s.orders, s.stock, s.dl || 0].join(','));
+    }
+    detailsCsv.value = rows.join('\n');
+  }
+  const stockCsv = document.getElementById('stockCsv');
+  if (stockCsv && state.stockRows && state.stockRows.length) {
+    const rows = ['nmId,warehouse,size,qty'];
+    for (const s of state.stockRows) {
+      rows.push([s.nmId, s.warehouse, s.size, s.qty].join(','));
+    }
+    stockCsv.value = rows.join('\n');
+  }
+  const ordersCsv = document.getElementById('ordersCsv');
+  if (ordersCsv && state.orderRows && state.orderRows.length) {
+    const rows = ['nmId,region,orders'];
+    for (const o of state.orderRows) {
+      rows.push([o.nmId, o.region, o.orders].join(','));
+    }
+    ordersCsv.value = rows.join('\n');
+  }
+}
+
+function renderCabinetUI() {
+  const active = CabinetManager.active();
+  const nameEl = document.getElementById('cabName');
+  if (nameEl) nameEl.textContent = active.name;
+  const syncCabEl = document.getElementById('syncCabName');
+  if (syncCabEl) syncCabEl.textContent = active.name;
+  // Обновить метку последней синхронизации
+  const syncStatusEl = document.getElementById('syncStatus');
+  if (syncStatusEl) {
+    if (active.lastSync) {
+      syncStatusEl.innerHTML = `<span class="pill ok">синхр. ${relativeTime(active.lastSync)}</span>`;
+    } else {
+      syncStatusEl.innerHTML = `<span class="pill warn">ещё не синхронизирован</span>`;
+    }
+  }
+  const menu = document.getElementById('cabMenu');
+  if (!menu) return;
+  const list = CabinetManager.list();
+  menu.innerHTML = `
+    <div class="cab-menu-label">Кабинеты (${list.length})</div>
+    ${list.map(c => `
+      <div class="cab-menu-item ${c.id === active.id ? 'active' : ''}" data-id="${c.id}">
+        <span class="cab-dot"></span>
+        <span style="flex:1">${c.name}</span>
+        ${c.id === active.id ? '<span style="font-size:11px;color:var(--accent)">активен</span>' : ''}
+      </div>
+    `).join('')}
+    <div class="cab-menu-divider"></div>
+    <button class="cab-menu-action" data-action="add">+ Новый кабинет</button>
+    <button class="cab-menu-action" data-action="rename">Переименовать текущий</button>
+    <button class="cab-menu-action danger" data-action="delete">Удалить текущий</button>
+  `;
+  menu.querySelectorAll('.cab-menu-item').forEach(el => {
+    el.onclick = () => {
+      CabinetManager.switch(el.dataset.id);
+      menu.classList.add('hidden');
+    };
+  });
+  menu.querySelectorAll('.cab-menu-action').forEach(el => {
+    el.onclick = () => {
+      const action = el.dataset.action;
+      if (action === 'add') {
+        const name = prompt('Название нового кабинета:');
+        if (name && name.trim()) CabinetManager.add(name.trim());
+      } else if (action === 'rename') {
+        const name = prompt('Новое название:', active.name);
+        if (name && name.trim()) CabinetManager.rename(active.id, name.trim());
+      } else if (action === 'delete') {
+        if (confirm('Удалить кабинет «' + active.name + '» и все его данные? Это необратимо.')) {
+          CabinetManager.remove(active.id);
+        }
+      }
+      menu.classList.add('hidden');
+    };
+  });
+}
+
+/* =========================================================
+   ДАШБОРД ПОКРЫТИЯ РЕГИОНОВ
+   ========================================================= */
+const FEDERAL_DISTRICTS = [
+  { name: 'Центральный', short: 'ЦФО', keys: ['Центральный', 'Москва', 'Московская', 'Тула', 'Тверь', 'Рязань', 'Калуга', 'Владимир', 'Ярославль', 'Иваново', 'Кострома', 'Смоленск', 'Брянск', 'Орёл', 'Орел', 'Курск', 'Белгород', 'Воронеж', 'Липецк', 'Тамбов', 'Коломна', 'Серпухов', 'Орехово', 'Сергиев', 'Волоколамск', 'Наро-Фоминск'] },
+  { name: 'Северо-Западный', short: 'СЗФО', keys: ['Северо-Западный', 'Санкт-Петербург', 'Ленинградская', 'Псков', 'Новгород', 'Вологда', 'Мурманск', 'Архангельск', 'Калининград', 'Петрозаводск', 'Сыктывкар', 'Нарьян-Мар'] },
+  { name: 'Южный', short: 'ЮФО', keys: ['Южный', 'Краснодар', 'Ростов', 'Волгоград', 'Астрахань', 'Адыгея', 'Майкоп', 'Элиста', 'Калмык', 'Крым', 'Симферополь', 'Севастополь'] },
+  { name: 'Северо-Кавказский', short: 'СКФО', keys: ['Кавказский', 'Ставрополь', 'Черкесск', 'Нальчик', 'Владикавказ', 'Грозный', 'Махачкала'] },
+  { name: 'Приволжский', short: 'ПФО', keys: ['Приволжский', 'Казань', 'Уфа', 'Нижний', 'Самара', 'Саратов', 'Пенза', 'Ульяновск', 'Киров', 'Пермь', 'Ижевск', 'Чебоксары', 'Йошкар', 'Саранск', 'Оренбург'] },
+  { name: 'Уральский', short: 'УФО', keys: ['Уральский', 'Екатеринбург', 'Челябинск', 'Тюмень', 'Курган', 'Ханты', 'Сургут', 'Новый Уренгой'] },
+  { name: 'Сибирский', short: 'СФО', keys: ['Сибирский', 'Новосибирск', 'Омск', 'Кемерово', 'Красноярск', 'Иркутск', 'Томск', 'Барнаул', 'Абакан', 'Кызыл', 'Горно-Алтайск', 'Норильск'] },
+  { name: 'Дальневосточный', short: 'ДФО', keys: ['Дальневосточный', 'Хабаровск', 'Приморский', 'Владивосток', 'Амурская', 'Благовещенск', 'Сахалин', 'Южно-Сахалинск', 'Магадан', 'Якутск', 'Улан-Удэ', 'Чита', 'Петропавловск', 'Анадырь'] },
+];
+
+function matchDistrict(region) {
+  if (!region) return null;
+  for (const d of FEDERAL_DISTRICTS) {
+    for (const k of d.keys) {
+      if (region.includes(k) || k.includes(region.split(/[\s,]+/)[0])) {
+        return d.name;
+      }
+    }
+  }
+  return null;
+}
+
+function computeRegionalCoverage(articles) {
+  const byDistrict = new Map();
+  for (const d of FEDERAL_DISTRICTS) {
+    byDistrict.set(d.name, {
+      name: d.name, short: d.short,
+      orders: 0, cities: new Map(),
+      warehouses: new Set(),
+      fastestHours: Infinity,
+    });
+  }
+  let grandTotal = 0;
+  for (const a of articles) {
+    if (!a.regions) continue;
+    for (const [region, count] of Object.entries(a.regions)) {
+      grandTotal += count;
+      const matched = matchDistrict(region);
+      if (!matched) continue;
+      const d = byDistrict.get(matched);
+      d.orders += count;
+      d.cities.set(region, (d.cities.get(region) || 0) + count);
+      const fw = getFastestWarehouse(region);
+      if (fw) {
+        d.warehouses.add(fw.name);
+        if (fw.hours < d.fastestHours) d.fastestHours = fw.hours;
+      }
+    }
+  }
+  const districts = [...byDistrict.values()].map(d => {
+    const topCities = [...d.cities.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([city, count]) => ({ city, count }));
+    let coverage;
+    if (d.orders === 0) coverage = 'none';
+    else if (d.warehouses.size === 0) coverage = 'bad';
+    else if (d.fastestHours > 60) coverage = 'partial';
+    else coverage = 'good';
+    return {
+      ...d,
+      topCities,
+      warehouses: [...d.warehouses],
+      coverage,
+      share: grandTotal > 0 ? d.orders / grandTotal : 0,
+      fastestHours: d.fastestHours === Infinity ? null : d.fastestHours,
+    };
+  }).sort((a, b) => b.orders - a.orders);
+  return { districts, grandTotal };
+}
+
+const COV_LABELS = {
+  good: { label: 'Хорошо', color: 'var(--ok)', bg: 'var(--ok-soft)' },
+  partial: { label: 'Частично', color: 'var(--warn)', bg: 'var(--warn-soft)' },
+  bad: { label: 'Не покрыт', color: 'var(--danger)', bg: 'var(--danger-soft)' },
+  none: { label: 'Нет заказов', color: 'var(--text-soft)', bg: 'var(--surface-3)' },
+};
+
+function renderRegionalCoverage() {
+  const el = document.getElementById('coverageGrid');
+  if (!el) return;
+  if (!state.articles || !state.articles.length) {
+    el.innerHTML = '<p class="muted">Нет данных. Загрузи данные на вкладке «Настройка».</p>';
+    return;
+  }
+  const { districts, grandTotal } = computeRegionalCoverage(state.articles);
+  const active = districts.filter(d => d.orders > 0);
+  const good = active.filter(d => d.coverage === 'good').length;
+  const partial = active.filter(d => d.coverage === 'partial').length;
+  const bad = active.filter(d => d.coverage === 'bad').length;
+  const avgHours = active.filter(d => d.fastestHours)
+    .reduce((s, d, _, arr) => s + d.fastestHours / arr.length, 0);
+
+  const summary = `
+    <div class="cov-summary">
+      <div class="cov-summary-card" style="background:var(--surface-2)">
+        <div class="lbl" style="color:var(--text-dim)">Округов с заказами</div>
+        <div class="val" style="color:var(--text)">${active.length}<span style="font-size:13px;color:var(--text-soft);font-weight:400"> / 8</span></div>
+      </div>
+      <div class="cov-summary-card" style="background:var(--ok-soft);border-color:var(--ok-border)">
+        <div class="lbl" style="color:var(--ok)">Покрыты хорошо</div>
+        <div class="val" style="color:var(--ok)">${good}</div>
+      </div>
+      <div class="cov-summary-card" style="background:var(--warn-soft);border-color:var(--warn-border)">
+        <div class="lbl" style="color:var(--warn)">Частично</div>
+        <div class="val" style="color:var(--warn)">${partial}</div>
+      </div>
+      <div class="cov-summary-card" style="background:var(--danger-soft);border-color:var(--danger-border)">
+        <div class="lbl" style="color:var(--danger)">Проблемные</div>
+        <div class="val" style="color:var(--danger)">${bad}</div>
+      </div>
+    </div>
+  `;
+
+  const cards = districts.map(d => {
+    const c = COV_LABELS[d.coverage];
+    const barWidth = (d.share * 100).toFixed(1);
+    return `
+      <div class="cov-card ${d.coverage}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:8px">
+          <div style="min-width:0">
+            <div style="font-size:10px;color:var(--text-soft);font-weight:500;letter-spacing:0.05em">${d.short}</div>
+            <div style="font-size:14px;color:var(--text);font-weight:500;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.name}</div>
+          </div>
+          <span class="pill" style="background:${c.bg};color:${c.color};flex-shrink:0">${c.label}</span>
+        </div>
+
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">
+          <div style="font-size:24px;font-weight:500;color:var(--text);font-variant-numeric:tabular-nums">${d.orders.toLocaleString('ru-RU')}</div>
+          <div style="font-size:11px;color:var(--text-dim)">${barWidth}% · ${d.fastestHours ? 'от ' + d.fastestHours + ' ч' : 'нет склада'}</div>
+        </div>
+
+        <div class="progress-bar" style="margin-bottom:14px">
+          <span style="width:${barWidth}%;background:${c.color}"></span>
+        </div>
+
+        ${d.topCities.length ? `
+          <div style="font-size:10px;color:var(--text-soft);font-weight:500;letter-spacing:0.04em;margin-bottom:6px">Топ-города</div>
+          ${d.topCities.map(ct => `
+            <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0">
+              <span style="color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70%">${ct.city}</span>
+              <span style="color:var(--text-dim);font-variant-numeric:tabular-nums">${ct.count}</span>
+            </div>
+          `).join('')}
+        ` : '<div style="font-size:12px;color:var(--text-soft);padding:4px 0">Нет заказов</div>'}
+
+        ${d.warehouses.length ? `
+          <div style="margin-top:12px;padding-top:10px;border-top:0.5px solid var(--surface-3);font-size:11px;color:var(--text-dim);line-height:1.5">
+            <span style="color:var(--text-soft);font-weight:500">Быстрые склады: </span>${d.warehouses.slice(0, 3).join(', ')}${d.warehouses.length > 3 ? ' +' + (d.warehouses.length - 3) : ''}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+
+  el.innerHTML = summary + `<div class="cov-grid">${cards}</div>`;
+}
+
+/* =========================================================
+   INIT
+   ========================================================= */
+// Инициализируем список кабинетов и подгружаем данные активного
+CabinetManager.list(); // создаст дефолтный при первом запуске
+CabinetManager.loadActiveData();
+CabinetManager.fillSyncInputs();
+renderCabinetUI();
+
+// Имя активного кабинета в карточке синхронизации
+(function syncCabLabel() {
+  const el = document.getElementById('syncCabName');
+  if (el) el.textContent = CabinetManager.active().name;
+})();
+
+// Клики по переключателю кабинетов
+document.getElementById('cabBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  document.getElementById('cabMenu').classList.toggle('hidden');
+});
+document.addEventListener('click', (e) => {
+  const sw = document.getElementById('cabSwitcher');
+  if (sw && !sw.contains(e.target)) {
+    document.getElementById('cabMenu').classList.add('hidden');
+  }
+});
+
+renderDiagnostics();
+renderProgress();
+
+/* ========== Создание поставки (ростовка → расчёт → экспорт) ========== */
+(function() {
+  const ROSTOVKI_KEY = 'irp_rostovki_v1';
+  const NOMEN_KEY = 'irp_nomenclature_v1';
+  const SUPPLY_KEY = 'irp_supply_list_v1';
+  let supplyList = [];
+  try { supplyList = JSON.parse(localStorage.getItem(SUPPLY_KEY)) || []; } catch { supplyList = []; }
+
+  const $ = (id) => document.getElementById(id);
+
+  // Стили для выпадающего списка автодополнения
+  (function injectCss() {
+    const css = `
+      #supVcDropdown {
+        position: absolute; left: 0; right: 0; top: 100%; margin-top: 4px;
+        background: var(--surface); border: 0.5px solid var(--border);
+        border-radius: var(--radius); max-height: 240px; overflow-y: auto;
+        z-index: 30; box-shadow: 0 4px 14px rgba(20,30,60,0.14);
+      }
+      .sup-dd-item {
+        padding: 8px 12px; cursor: pointer; font-size: 13px;
+        border-bottom: 0.5px solid var(--surface-3);
+      }
+      .sup-dd-item:last-child { border-bottom: none; }
+      .sup-dd-item:hover, .sup-dd-item.active { background: var(--accent-soft); }
+      .sup-dd-sub { color: var(--text-dim); font-size: 11px; margin-top: 2px; }
+      .sup-dd-empty { padding: 10px 12px; font-size: 12px; color: var(--text-dim); }
+      .sup-dd-match { color: var(--accent); font-weight: 500; }
+    `;
+    const s = document.createElement('style');
+    s.textContent = css;
+    document.head.appendChild(s);
+  })();
+
+  function loadRostovki() {
+    try { return JSON.parse(localStorage.getItem(ROSTOVKI_KEY)) || {}; }
+    catch { return {}; }
+  }
+  function saveRostovki(obj) {
+    localStorage.setItem(ROSTOVKI_KEY, JSON.stringify(obj));
+  }
+  function normKey(vc) { return String(vc || '').trim().toLowerCase(); }
+
+  // Номенклатура: nmId / vendorCode → { nmId, vendorCode, sizes: [techSize,...] }
+  function loadNomen() {
+    try { return JSON.parse(localStorage.getItem(NOMEN_KEY)) || { byNm: {}, byVc: {} }; }
+    catch { return { byNm: {}, byVc: {} }; }
+  }
+  function saveNomen(obj) {
+    localStorage.setItem(NOMEN_KEY, JSON.stringify(obj));
+  }
+  function sortSizes(arr) {
+    return arr.slice().sort((a, b) => {
+      const na = parseFloat(String(a).replace(',', '.'));
+      const nb = parseFloat(String(b).replace(',', '.'));
+      const aNum = !isNaN(na) && isFinite(na);
+      const bNum = !isNaN(nb) && isFinite(nb);
+      if (aNum && bNum) return na - nb;
+      if (aNum) return -1;
+      if (bNum) return 1;
+      return String(a).localeCompare(String(b), 'ru', { numeric: true });
+    });
+  }
+
+  // Нормализация sizes: принимает массив строк ИЛИ массив {size, barcode},
+  // возвращает массив {size, barcode} без дубликатов (по size), отсортированный по возрастанию
+  function normalizeSizes(raw) {
+    if (!Array.isArray(raw)) return [];
+    const bySize = new Map();
+    raw.forEach(s => {
+      if (s == null) return;
+      let size = '', barcode = '';
+      if (typeof s === 'string') { size = s; }
+      else { size = String(s.size || ''); barcode = String(s.barcode || ''); }
+      size = size.trim();
+      if (!size) return;
+      const existing = bySize.get(size);
+      // предпочитаем вариант с баркодом
+      if (!existing || (barcode && !existing.barcode)) {
+        bySize.set(size, { size, barcode });
+      }
+    });
+    const sortedNames = sortSizes(Array.from(bySize.keys()));
+    return sortedNames.map(n => bySize.get(n));
+  }
+
+  function addToNomen(items) {
+    const store = loadNomen();
+    let added = 0;
+    items.forEach(it => {
+      if (!it || (!it.nmId && !it.vendorCode)) return;
+      const rec = {
+        nmId: it.nmId != null ? Number(it.nmId) : null,
+        vendorCode: it.vendorCode || '',
+        sizes: normalizeSizes(it.sizes)
+      };
+      if (rec.nmId) store.byNm[rec.nmId] = rec;
+      if (rec.vendorCode) store.byVc[normKey(rec.vendorCode)] = rec;
+      added++;
+    });
+    saveNomen(store);
+    return added;
+  }
+
+  // Подсчёт штрихкодов в массиве размеров
+  function countBarcodes(sizes) {
+    if (!Array.isArray(sizes)) return 0;
+    return sizes.filter(s => s && (typeof s === 'object' ? s.barcode : false)).length;
+  }
+
+  // Встроенные шаблоны ростовки. Если у артикула набор размеров точно совпадает
+  // с одним из шаблонов — автоматически подставляются «шт в 1 коробке».
+  // Пользователь может в любой момент поменять значения руками.
+  const SIZE_TEMPLATES = [
+    { name: '41–46 (1·1·2·2·1·1)', map: { '41': 1, '42': 1, '43': 2, '44': 2, '45': 1, '46': 1 } },
+    { name: '41–45 (1·2·2·2·1)',   map: { '41': 1, '42': 2, '43': 2, '44': 2, '45': 1 } },
+    { name: '37–41 (1·2·2·2·1)',   map: { '37': 1, '38': 2, '39': 2, '40': 2, '41': 1 } },
+    { name: '36–41 (1·1·2·2·1·1)', map: { '36': 1, '37': 1, '38': 2, '39': 2, '40': 1, '41': 1 } }
+  ];
+
+  function matchSizeTemplate(sizeNames) {
+    if (!Array.isArray(sizeNames) || !sizeNames.length) return null;
+    const setA = new Set(sizeNames.map(s => String(s).trim()));
+    for (const tpl of SIZE_TEMPLATES) {
+      const keys = Object.keys(tpl.map);
+      if (keys.length !== setA.size) continue;
+      let match = true;
+      for (const k of keys) {
+        if (!setA.has(k)) { match = false; break; }
+      }
+      if (match) return tpl;
+    }
+    return null;
+  }
+
+  // Применить шаблон к массиву {size, perBox, barcode}. Возвращает новый массив
+  // с заполненным perBox. Если совпадения нет — возвращает исходный массив.
+  // Второй элемент результата — имя применённого шаблона или null.
+  function applySizeTemplate(sizes) {
+    const tpl = matchSizeTemplate(sizes.map(s => s.size));
+    if (!tpl) return { sizes, templateName: null };
+    return {
+      sizes: sizes.map(s => ({ ...s, perBox: tpl.map[String(s.size).trim()] || 0 })),
+      templateName: tpl.name
+    };
+  }
+
+  // Получить карту {size → barcode} из номенклатуры по nmId/vendorCode
+  function getBarcodeMapFromNomen(vendorCode, nmId) {
+    const store = loadNomen();
+    let rec = null;
+    if (nmId && store.byNm[nmId]) rec = store.byNm[nmId];
+    if (!rec && vendorCode && store.byVc[normKey(vendorCode)]) rec = store.byVc[normKey(vendorCode)];
+    const map = {};
+    if (rec && Array.isArray(rec.sizes)) {
+      rec.sizes.forEach(s => {
+        if (s && s.size && s.barcode) map[s.size] = s.barcode;
+      });
+    }
+    return map;
+  }
+
+  // Поиск размеров: 1) сохранённая ростовка → 2) кэш номенклатуры → 3) state.sizeData (от синхронизации кабинета)
+  function findSizesFor(vendorCode, nmId) {
+    const ros = loadRostovki();
+    const rHit = vendorCode ? ros[normKey(vendorCode)] : null;
+    if (rHit && rHit.sizes && rHit.sizes.length) {
+      const bcMap = getBarcodeMapFromNomen(vendorCode, rHit.nmId || nmId);
+      const sortedNames = sortSizes(rHit.sizes.map(s => s.size));
+      const sorted = sortedNames.map(name => {
+        const r = rHit.sizes.find(s => s.size === name) || { size: name, perBox: 0 };
+        return {
+          size: name,
+          perBox: r.perBox || 0,
+          barcode: (r.barcode || bcMap[name] || '')
+        };
+      });
+      return { source: 'rostovka', sizes: sorted, nmId: rHit.nmId ?? nmId, vendorCode: rHit.vendorCode };
+    }
+
+    const store = loadNomen();
+    let nomRec = null;
+    if (nmId && store.byNm[nmId]) nomRec = store.byNm[nmId];
+    if (!nomRec && vendorCode && store.byVc[normKey(vendorCode)]) nomRec = store.byVc[normKey(vendorCode)];
+    if (nomRec && nomRec.sizes && nomRec.sizes.length) {
+      const raw = nomRec.sizes.map(s => ({ size: s.size, perBox: 0, barcode: s.barcode || '' }));
+      const applied = applySizeTemplate(raw);
+      return {
+        source: 'nomenclature',
+        sizes: applied.sizes,
+        templateName: applied.templateName,
+        nmId: nomRec.nmId ?? nmId,
+        vendorCode: nomRec.vendorCode || vendorCode
+      };
+    }
+
+    // Фоллбэк: state.sizeData из syncCabinet (без баркодов)
+    try {
+      if (typeof state !== 'undefined' && Array.isArray(state.sizeData) && nmId) {
+        const nmNum = Number(nmId);
+        const list = state.sizeData.filter(r => Number(r.nmId) === nmNum).map(r => r.size).filter(Boolean);
+        const uniq = sortSizes(Array.from(new Set(list)));
+        if (uniq.length) {
+          const raw = uniq.map(sz => ({ size: sz, perBox: 0, barcode: '' }));
+          const applied = applySizeTemplate(raw);
+          return {
+            source: 'sizeData',
+            sizes: applied.sizes,
+            templateName: applied.templateName,
+            nmId: nmNum,
+            vendorCode: vendorCode
+          };
+        }
+      }
+    } catch {}
+
+    return null;
+  }
+
+  function setPullStatus(msg, kind) {
+    const el = $('supPullStatus');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.style.color = kind === 'ok' ? 'var(--ok)' : kind === 'bad' ? 'var(--danger)' : 'var(--text-dim)';
+  }
+
+  const SUP_ROW_INPUT = 'padding:6px 9px; font-size:12px; height:30px';
+  const SUP_GRID = 'display:grid; grid-template-columns:70px 85px 140px 30px; gap:6px; align-items:center; max-width:345px';
+  const SUP_HEADER_HTML = `
+    <div class="sup-size-head" style="${SUP_GRID}; margin-bottom:4px; font-size:11px; color:var(--text-dim); font-weight:500">
+      <div>Размер</div>
+      <div>Шт/коробка</div>
+      <div>Штрихкод</div>
+      <div></div>
+    </div>`;
+
+  function rowTemplate(size, perBox, barcode) {
+    const s = size == null ? '' : String(size);
+    const p = perBox == null ? '' : String(perBox);
+    const bc = barcode == null ? '' : String(barcode);
+    const bcEsc = bc.replace(/"/g, '&quot;');
+    const bcDisplay = bc ? escHtml(bc) : '<span style="color:var(--danger)">нет</span>';
+    return `
+      <div class="sup-size-row" data-barcode="${bcEsc}" style="${SUP_GRID}; margin-bottom:5px">
+        <input class="sup-size" value="${s.replace(/"/g,'&quot;')}" placeholder="42" style="${SUP_ROW_INPUT}"/>
+        <input class="sup-perbox" type="number" min="0" value="${p.replace(/"/g,'&quot;')}" placeholder="1" style="${SUP_ROW_INPUT}"/>
+        <div class="sup-barcode-cell" title="${bcEsc}" style="font-family:'JetBrains Mono', ui-monospace, monospace; font-size:10px; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:0 4px">${bcDisplay}</div>
+        <button type="button" class="btn ghost sup-del" style="padding:0; width:30px; height:30px; font-size:14px; line-height:1" title="Удалить">×</button>
+      </div>`;
+  }
+
+  function renderSizeRows(sizes) {
+    const box = $('supSizesRows');
+    const list = (!sizes || !sizes.length)
+      ? [rowTemplate('', '', '')]
+      : sizes.map(s => rowTemplate(s.size, s.perBox, s.barcode || ''));
+    box.innerHTML = SUP_HEADER_HTML + list.join('');
+  }
+
+  function addSizeRow(size = '', perBox = '', barcode = '') {
+    const box = $('supSizesRows');
+    box.insertAdjacentHTML('beforeend', rowTemplate(size, perBox, barcode));
+  }
+
+  function getSizesFromDom() {
+    const rows = document.querySelectorAll('#supSizesRows .sup-size-row');
+    const out = [];
+    rows.forEach(r => {
+      const size = r.querySelector('.sup-size').value.trim();
+      const perBoxRaw = r.querySelector('.sup-perbox').value.trim();
+      if (size === '' && perBoxRaw === '') return;
+      const perBox = Number(perBoxRaw);
+      const barcode = r.getAttribute('data-barcode') || '';
+      out.push({ size, perBox: isNaN(perBox) ? 0 : perBox, barcode });
+    });
+    return out;
+  }
+
+  function lookupRostovka() {
+    const vc = $('supVendorCode').value;
+    if (!vc.trim()) return;
+    const all = loadRostovki();
+    const hit = all[normKey(vc)];
+    if (!hit) return;
+    if (hit.nmId != null && !$('supNmId').value) $('supNmId').value = hit.nmId;
+    if (Array.isArray(hit.sizes) && hit.sizes.length) renderSizeRows(hit.sizes);
+  }
+
+  // ===== Автодополнение артикула продавца =====
+  let dropdownEl = null;
+  let ddActiveIdx = -1;
+  let ddCurrentItems = [];
+
+  function ensureDropdown() {
+    if (dropdownEl) return dropdownEl;
+    dropdownEl = document.createElement('div');
+    dropdownEl.id = 'supVcDropdown';
+    dropdownEl.style.display = 'none';
+    $('supVcWrap').appendChild(dropdownEl);
+
+    dropdownEl.addEventListener('mousedown', (e) => {
+      const item = e.target.closest('.sup-dd-item');
+      if (!item) return;
+      e.preventDefault(); // предотвратить blur на input
+      selectVcItem(item.getAttribute('data-vc'));
+    });
+    return dropdownEl;
+  }
+
+  function getVcCandidates(query) {
+    const store = loadNomen();
+    const ros = loadRostovki();
+    const q = normKey(query);
+    const all = new Map();
+    Object.values(store.byNm || {}).forEach(rec => {
+      if (!rec || !rec.vendorCode) return;
+      const k = normKey(rec.vendorCode);
+      if (!all.has(k)) all.set(k, {
+        vendorCode: rec.vendorCode,
+        nmId: rec.nmId,
+        sizesCount: (rec.sizes || []).length,
+        saved: false
+      });
+    });
+    Object.values(ros || {}).forEach(rec => {
+      if (!rec || !rec.vendorCode) return;
+      const k = normKey(rec.vendorCode);
+      if (!all.has(k)) {
+        all.set(k, {
+          vendorCode: rec.vendorCode,
+          nmId: rec.nmId,
+          sizesCount: (rec.sizes || []).length,
+          saved: true
+        });
+      } else {
+        const x = all.get(k);
+        x.saved = true;
+        if (!x.nmId && rec.nmId) x.nmId = rec.nmId;
+      }
+    });
+    let items = Array.from(all.values());
+    if (q) items = items.filter(x => normKey(x.vendorCode).includes(q));
+    items.sort((a, b) => {
+      if (a.saved && !b.saved) return -1;
+      if (!a.saved && b.saved) return 1;
+      return String(a.vendorCode).localeCompare(String(b.vendorCode), 'ru', { numeric: true });
+    });
+    return items.slice(0, 50);
+  }
+
+  function highlightMatch(text, query) {
+    if (!query) return escHtml(text);
+    const q = normKey(query);
+    const lower = String(text).toLowerCase();
+    const i = lower.indexOf(q);
+    if (i === -1) return escHtml(text);
+    const before = String(text).slice(0, i);
+    const hit = String(text).slice(i, i + q.length);
+    const after = String(text).slice(i + q.length);
+    return escHtml(before) + '<span class="sup-dd-match">' + escHtml(hit) + '</span>' + escHtml(after);
+  }
+
+  function renderVcDropdown() {
+    const dd = ensureDropdown();
+    const q = $('supVendorCode').value;
+    ddCurrentItems = getVcCandidates(q);
+    ddActiveIdx = -1;
+    if (!ddCurrentItems.length) {
+      dd.innerHTML = `<div class="sup-dd-empty">Совпадений нет. Загрузите номенклатуру (CSV или WB API), либо сохраните ростовку для этого артикула.</div>`;
+    } else {
+      dd.innerHTML = ddCurrentItems.map(it => {
+        const sub = [];
+        if (it.nmId) sub.push('nmId ' + it.nmId);
+        if (it.sizesCount) sub.push(it.sizesCount + ' разм.');
+        if (it.saved) sub.push('сохранена ростовка');
+        return `
+          <div class="sup-dd-item" data-vc="${escHtml(it.vendorCode)}">
+            <div>${highlightMatch(it.vendorCode, q)}</div>
+            ${sub.length ? `<div class="sup-dd-sub">${sub.join(' • ')}</div>` : ''}
+          </div>`;
+      }).join('');
+    }
+    dd.style.display = 'block';
+  }
+
+  function hideVcDropdown() {
+    if (dropdownEl) dropdownEl.style.display = 'none';
+    ddActiveIdx = -1;
+  }
+
+  function selectVcItem(vc) {
+    $('supVendorCode').value = vc;
+    hideVcDropdown();
+    // Подтягиваем размеры: сначала из ростовок, потом фоллбэк
+    lookupRostovka();
+    pullSizesLocal();
+    $('supBoxes').focus();
+  }
+
+  function setDdActive(idx) {
+    const items = dropdownEl ? dropdownEl.querySelectorAll('.sup-dd-item') : [];
+    if (!items.length) return;
+    if (idx < 0) idx = items.length - 1;
+    if (idx >= items.length) idx = 0;
+    items.forEach((el, i) => el.classList.toggle('active', i === idx));
+    ddActiveIdx = idx;
+    items[idx].scrollIntoView({ block: 'nearest' });
+  }
+
+  function onVcKeyDown(e) {
+    if (!dropdownEl || dropdownEl.style.display === 'none') return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setDdActive(ddActiveIdx + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setDdActive(ddActiveIdx - 1); }
+    else if (e.key === 'Enter') {
+      if (ddActiveIdx >= 0 && ddCurrentItems[ddActiveIdx]) {
+        e.preventDefault();
+        selectVcItem(ddCurrentItems[ddActiveIdx].vendorCode);
+      }
+    } else if (e.key === 'Escape') {
+      hideVcDropdown();
+    }
+  }
+
+  function pullSizesLocal() {
+    const vc = $('supVendorCode').value.trim();
+    const nm = $('supNmId').value.trim();
+    if (!vc && !nm) { setPullStatus('укажите артикул продавца или артикул WB', 'bad'); return; }
+    const hit = findSizesFor(vc, nm);
+    if (!hit) {
+      setPullStatus('не найдено ни в ростовках, ни в номенклатуре, ни в синхронизации', 'bad');
+      return;
+    }
+    if (hit.nmId && !$('supNmId').value) $('supNmId').value = hit.nmId;
+    if (hit.vendorCode && !$('supVendorCode').value) $('supVendorCode').value = hit.vendorCode;
+    renderSizeRows(hit.sizes);
+    const labels = { rostovka: 'сохранённая ростовка', nomenclature: 'загруженная номенклатура', sizeData: 'данные синхронизации кабинета' };
+    const base = `размеры подтянуты (${labels[hit.source] || hit.source})`;
+    const tail = hit.templateName ? ` • применён шаблон «${hit.templateName}»` : '';
+    setPullStatus(base + tail, 'ok');
+  }
+
+  // Импорт CSV номенклатуры
+  function parseCsvNomen(text) {
+    // Разделитель — авто: ; , \t
+    const firstLine = text.split(/\r?\n/)[0] || '';
+    const sep = firstLine.includes(';') ? ';'
+             : firstLine.includes('\t') ? '\t'
+             : ',';
+    const rows = [];
+    let cur = [], field = '', inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (inQ) {
+        if (ch === '"' && text[i+1] === '"') { field += '"'; i++; }
+        else if (ch === '"') inQ = false;
+        else field += ch;
+      } else {
+        if (ch === '"') inQ = true;
+        else if (ch === sep) { cur.push(field); field = ''; }
+        else if (ch === '\r') { /* skip */ }
+        else if (ch === '\n') { cur.push(field); rows.push(cur); cur = []; field = ''; }
+        else field += ch;
+      }
+    }
+    if (field.length || cur.length) { cur.push(field); rows.push(cur); }
+    if (!rows.length) return [];
+    const header = rows.shift().map(h => h.trim().toLowerCase().replace(/^\uFEFF/, ''));
+    const idxOf = (names) => {
+      for (const n of names) {
+        const i = header.indexOf(n);
+        if (i !== -1) return i;
+      }
+      return -1;
+    };
+    const iNm = idxOf(['nmid', 'nm id', 'ид', 'артикул wb', 'артикулwb', 'wbid']);
+    const iVc = idxOf(['vendorcode', 'vendor code', 'supplierarticle', 'артикул продавца', 'артикул', 'артикул поставщика', 'мой артикул']);
+    const iSz = idxOf(['techsize', 'tech size', 'размер', 'размер товара', 'size']);
+    const iBc = idxOf(['barcode', 'баркод', 'штрихкод', 'штрих-код', 'ean', 'sku', 'skus']);
+    if (iNm === -1 && iVc === -1) return [];
+    if (iSz === -1) return [];
+
+    // Группируем размеры по артикулу
+    const byKey = new Map();
+    rows.forEach(r => {
+      if (!r || !r.length) return;
+      const nm = iNm !== -1 ? String(r[iNm] || '').trim() : '';
+      const vc = iVc !== -1 ? String(r[iVc] || '').trim() : '';
+      const sz = String(r[iSz] || '').trim();
+      const bc = iBc !== -1 ? String(r[iBc] || '').trim() : '';
+      if (!sz) return;
+      const key = nm || vc.toLowerCase();
+      if (!key) return;
+      if (!byKey.has(key)) byKey.set(key, { nmId: nm ? Number(nm) : null, vendorCode: vc, sizes: new Map() });
+      const rec = byKey.get(key);
+      // Добавляем размер; если уже есть без баркода, а этот с баркодом — обновляем
+      const existing = rec.sizes.get(sz);
+      if (!existing || (bc && !existing.barcode)) {
+        rec.sizes.set(sz, { size: sz, barcode: bc });
+      }
+    });
+    return Array.from(byKey.values()).map(v => ({
+      nmId: v.nmId,
+      vendorCode: v.vendorCode,
+      sizes: Array.from(v.sizes.values())
+    }));
+  }
+
+  function onCsvFileChange(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const items = parseCsvNomen(String(reader.result || ''));
+        if (!items.length) {
+          setPullStatus('CSV: не найдены колонки nmId/vendorCode/размер', 'bad');
+          return;
+        }
+        const n = addToNomen(items);
+        setPullStatus(`CSV загружен: ${items.length} артикулов, ${items.reduce((a, x) => a + x.sizes.length, 0)} размеров`, 'ok');
+        // Сразу пробуем автоподставить, если что-то уже введено
+        pullSizesLocal();
+      } catch (err) {
+        setPullStatus('ошибка парсинга CSV: ' + (err.message || err), 'bad');
+      } finally {
+        e.target.value = '';
+      }
+    };
+    reader.onerror = () => setPullStatus('не удалось прочитать файл', 'bad');
+    reader.readAsText(file, 'utf-8');
+  }
+
+  // WB Content API: /content/v2/get/cards/list
+  async function pullFromWbApi() {
+    const tokenEl = document.getElementById('token');
+    const token = tokenEl ? tokenEl.value.trim() : '';
+    if (!token) {
+      setPullStatus('введите токен во вкладке «Настройка»', 'bad');
+      return;
+    }
+    const proxyEl = document.getElementById('proxyUrl');
+    const proxy = proxyEl ? proxyEl.value.trim() : '';
+    const endpoint = 'https://content-api.wildberries.ru/content/v2/get/cards/list';
+    const LIMIT = 100;
+
+    setPullStatus('загрузка карточек…');
+    $('supPullApi').disabled = true;
+    try {
+      const all = [];
+      let cursor = { limit: LIMIT };
+      let page = 0;
+      while (page < 200) {
+        page++;
+        setPullStatus(`загрузка карточек… страница ${page}, получено ${all.length}`);
+        const body = { settings: { cursor, filter: { withPhoto: -1 } } };
+        const url = proxy ? (proxy + '?url=' + encodeURIComponent(endpoint)) : endpoint;
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Authorization': token, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        const cards = (data && data.cards) || [];
+        cards.forEach(c => {
+          const sizes = Array.isArray(c.sizes) ? c.sizes.map(s => ({
+            size: s.techSize || s.wbSize || '',
+            barcode: (Array.isArray(s.skus) && s.skus[0]) || ''
+          })).filter(x => x.size) : [];
+          all.push({ nmId: c.nmID || c.nmId, vendorCode: c.vendorCode || '', sizes });
+        });
+        const cur = (data && data.cursor) || null;
+        // Правильное условие остановки для WB Content API v2:
+        // если cursor.total < limit — это была последняя страница.
+        // Дополнительно: cards пустой или cursor отсутствует.
+        const returned = (cur && typeof cur.total === 'number') ? cur.total : cards.length;
+        if (!cur || returned < LIMIT || cards.length === 0) break;
+        cursor = { limit: LIMIT, updatedAt: cur.updatedAt, nmID: cur.nmID };
+      }
+      if (!all.length) {
+        setPullStatus('API вернул 0 карточек — проверьте категорию токена «Контент»', 'bad');
+        return;
+      }
+      addToNomen(all);
+      const totalBc = all.reduce((a, x) => a + (x.sizes || []).filter(s => s.barcode).length, 0);
+      const totalSz = all.reduce((a, x) => a + (x.sizes || []).length, 0);
+      setPullStatus(`WB API: ${all.length} карточек, ${totalBc}/${totalSz} штрихкодов (кэшировано)`, 'ok');
+      // Авто-обогащаем уже отрисованные строки текущего артикула
+      reenrichCurrentRowsWithBarcodes();
+      // И повторяем общий lookup — на случай если артикул был частично заполнен
+      pullSizesLocal();
+    } catch (err) {
+      setPullStatus('ошибка WB API: ' + (err.message || err) + ' (если CORS — задайте прокси)', 'bad');
+    } finally {
+      $('supPullApi').disabled = false;
+    }
+  }
+
+  // Дозаполнить штрихкоды в текущих строках ростовки из кэша номенклатуры.
+  // Не трогает строки, где штрихкод уже есть или где пользователь правил размер вручную.
+  function reenrichCurrentRowsWithBarcodes() {
+    const vc = $('supVendorCode').value.trim();
+    const nm = $('supNmId').value.trim();
+    if (!vc && !nm) return;
+    const bcMap = getBarcodeMapFromNomen(vc, nm);
+    if (!Object.keys(bcMap).length) return;
+    const rows = document.querySelectorAll('#supSizesRows .sup-size-row');
+    let filled = 0;
+    rows.forEach(row => {
+      const cur = row.getAttribute('data-barcode') || '';
+      if (cur) return;
+      const sizeInput = row.querySelector('.sup-size');
+      const size = sizeInput ? sizeInput.value.trim() : '';
+      if (!size) return;
+      const bc = bcMap[size];
+      if (!bc) return;
+      row.setAttribute('data-barcode', bc);
+      const cell = row.querySelector('.sup-barcode-cell');
+      if (cell) {
+        cell.textContent = bc;
+        cell.setAttribute('title', bc);
+        cell.style.color = 'var(--text-dim)';
+      }
+      filled++;
+    });
+    return filled;
+  }
+
+  // Строка «что сейчас лежит в кэше» — показывается при загрузке страницы,
+  // чтобы пользователь сразу видел, нужно ли ещё раз дёргать WB API.
+  function showCacheStatus() {
+    const store = loadNomen();
+    const recs = Object.values(store.byNm || {});
+    let bc = 0, sz = 0;
+    recs.forEach(r => {
+      (r.sizes || []).forEach(s => {
+        sz++;
+        if (s && s.barcode) bc++;
+      });
+    });
+    if (!recs.length) {
+      setPullStatus('кэш пуст — загрузите номенклатуру через WB API или CSV (один раз)');
+    } else {
+      setPullStatus(`кэш: ${recs.length} артикулов, ${bc}/${sz} штрихкодов`, 'ok');
+    }
+  }
+
+  function showError(msg) {
+    const errBox = `<div class="info danger" style="margin-bottom:14px"><strong>Ошибка:</strong> ${msg}</div>`;
+    $('supResult').innerHTML = errBox + renderSupplyView();
+    updateExportButtons();
+  }
+
+  function persistSupply() {
+    try { localStorage.setItem(SUPPLY_KEY, JSON.stringify(supplyList)); } catch {}
+  }
+
+  function updateExportButtons() {
+    const has = supplyList.length > 0;
+    $('supExportCsv').disabled = !has;
+    $('supExportXlsx').disabled = !has;
+    $('supClear').disabled = !has;
+  }
+
+  function escHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function renderSupplyView() {
+    if (!supplyList.length) {
+      return `<div class="muted" style="padding:8px 0">Список поставки пуст. Добавьте первый артикул.</div>`;
+    }
+
+    const totalBoxes = supplyList.reduce((a, x) => a + x.boxes, 0);
+    const totalPieces = supplyList.reduce((a, x) => a + x.totalPieces, 0);
+    const totalArticles = supplyList.length;
+    const totalMissingBc = supplyList.reduce((a, x) => a + (x.missingBc || 0), 0);
+
+    const statGrid = `
+      <div class="stat-grid" style="grid-template-columns:repeat(3,1fr); margin-bottom:14px">
+        <div class="stat"><div class="k">Артикулов</div><div class="v">${totalArticles}</div></div>
+        <div class="stat"><div class="k">Всего коробок</div><div class="v">${totalBoxes}</div></div>
+        <div class="stat"><div class="k">Итого штук</div><div class="v ok">${totalPieces}</div></div>
+      </div>`;
+
+    const warnBc = totalMissingBc > 0
+      ? `<div class="info warn" style="margin-bottom:14px"><strong>Внимание:</strong> у ${totalMissingBc} размер(ов) нет штрихкода — они не попадут в экспорт для WB. Подтяните номенклатуру через WB API или CSV.</div>`
+      : '';
+
+    const rows = supplyList.map((it, idx) => {
+      const sizesStr = it.rows.map(r => {
+        const marker = r.barcode ? '' : ' <span style="color:var(--danger)">⚠</span>';
+        return `${escHtml(r.size)}×${r.perBox}${marker}`;
+      }).join(', ');
+      return `
+        <tr>
+          <td><strong>${escHtml(it.vendorCode)}</strong>${it.nmId ? `<div class="art-sub">nmId ${escHtml(it.nmId)}</div>` : ''}</td>
+          <td style="font-size:12px; color:var(--text-dim)">${sizesStr}</td>
+          <td class="num">${it.sumPerBox}</td>
+          <td class="num">${it.boxes}</td>
+          <td class="num"><strong>${it.totalPieces}</strong></td>
+          <td><button type="button" class="btn ghost sup-row-del" data-idx="${idx}" style="padding:4px 10px; font-size:12px" title="Удалить из списка">×</button></td>
+        </tr>`;
+    }).join('');
+
+    const table = `
+      <table>
+        <thead>
+          <tr>
+            <th>Артикул</th>
+            <th>Ростовка</th>
+            <th class="num">Шт/коробка</th>
+            <th class="num">Коробок</th>
+            <th class="num">Итого штук</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+          <tr>
+            <td><strong>Итого</strong></td>
+            <td></td>
+            <td></td>
+            <td class="num"><strong>${totalBoxes}</strong></td>
+            <td class="num"><strong>${totalPieces}</strong></td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>`;
+
+    return statGrid + warnBc + table;
+  }
+
+  function refreshSupplyView() {
+    $('supResult').innerHTML = renderSupplyView();
+    updateExportButtons();
+  }
+
+  function addToSupply() {
+    const vendorCode = $('supVendorCode').value.trim();
+    const nmId = $('supNmId').value.trim();
+    const boxes = Number($('supBoxes').value);
+    const sizes = getSizesFromDom();
+
+    if (!vendorCode) return showError('укажите Артикул продавца.');
+    if (!boxes || boxes < 1) return showError('количество коробок должно быть ≥ 1.');
+    if (!sizes.length) return showError('добавьте хотя бы один размер.');
+
+    const seen = new Set();
+    for (const s of sizes) {
+      if (!s.size) return showError('есть пустое поле «Размер».');
+      if (s.perBox < 0) return showError(`отрицательное значение для размера «${s.size}».`);
+      const k = s.size.toLowerCase();
+      if (seen.has(k)) return showError(`размер «${s.size}» повторяется.`);
+      seen.add(k);
+    }
+    const sumPerBox = sizes.reduce((a, s) => a + s.perBox, 0);
+    if (sumPerBox <= 0) return showError('в коробке должно быть > 0 штук.');
+
+    // Обогащаем баркодами из номенклатуры, если в строке размера баркод пуст
+    const bcMap = getBarcodeMapFromNomen(vendorCode, nmId);
+    const rows = sizes.map(s => ({
+      size: s.size,
+      perBox: s.perBox,
+      boxes: boxes,
+      total: s.perBox * boxes,
+      barcode: s.barcode || bcMap[s.size] || ''
+    }));
+    const totalPieces = sumPerBox * boxes;
+    const missingBc = rows.filter(r => r.total > 0 && !r.barcode).length;
+
+    // Если такой артикул (vendorCode регистронезависимо) уже есть — обновляем
+    const idx = supplyList.findIndex(x => normKey(x.vendorCode) === normKey(vendorCode));
+    const item = { vendorCode, nmId, boxes, sumPerBox, totalPieces, rows, missingBc };
+    if (idx !== -1) supplyList[idx] = item;
+    else supplyList.push(item);
+
+    persistSupply();
+    refreshSupplyView();
+
+    // Очищаем форму ввода для следующего артикула, ростовку оставляем как заготовку
+    $('supVendorCode').value = '';
+    $('supNmId').value = '';
+    $('supBoxes').value = '1';
+    $('supVendorCode').focus();
+  }
+
+  function clearSupplyList() {
+    if (!supplyList.length) return;
+    if (!confirm('Очистить весь список поставки?')) return;
+    supplyList = [];
+    persistSupply();
+    refreshSupplyView();
+  }
+
+  function removeSupplyItem(idx) {
+    if (idx < 0 || idx >= supplyList.length) return;
+    supplyList.splice(idx, 1);
+    persistSupply();
+    refreshSupplyView();
+  }
+
+  function saveRostovkaHandler() {
+    const vendorCode = $('supVendorCode').value.trim();
+    const nmId = $('supNmId').value.trim();
+    const sizes = getSizesFromDom();
+    if (!vendorCode) { alert('Укажите Vendor Code.'); return; }
+    if (!sizes.length) { alert('Добавьте хотя бы один размер.'); return; }
+    const seen = new Set();
+    for (const s of sizes) {
+      if (!s.size) { alert('Есть пустое поле «Размер».'); return; }
+      const k = s.size.toLowerCase();
+      if (seen.has(k)) { alert(`Размер «${s.size}» повторяется.`); return; }
+      seen.add(k);
+    }
+    const all = loadRostovki();
+    all[normKey(vendorCode)] = {
+      vendorCode,
+      nmId: nmId ? Number(nmId) : null,
+      sizes: sizes.map(s => ({ size: s.size, perBox: s.perBox, barcode: s.barcode || '' })),
+      updatedAt: new Date().toISOString()
+    };
+    saveRostovki(all);
+    alert('Ростовка сохранена. При следующем вводе «' + vendorCode + '» она подтянется автоматически.');
+  }
+
+  function dateStamp() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate());
+  }
+
+  function safeName(s) {
+    return String(s || 'postavka').replace(/[^\wа-яА-ЯёЁ.-]+/g, '_');
+  }
+
+  // Формат для WB: только 2 колонки — баркод и количество.
+  // Одинаковые баркоды агрегируются (на случай если один размер попал в поставку
+  // несколько раз через разные артикулы — что в норме не должно случаться, но защищаемся).
+  function buildSupplyAoa() {
+    const byBarcode = new Map();
+    let missingPieces = 0;
+    let missingRows = 0;
+    supplyList.forEach(it => {
+      it.rows.forEach(r => {
+        if (!r.total) return;
+        if (!r.barcode) {
+          missingPieces += r.total;
+          missingRows += 1;
+          return;
+        }
+        byBarcode.set(r.barcode, (byBarcode.get(r.barcode) || 0) + r.total);
+      });
+    });
+    const aoa = [['Баркод', 'Количество']];
+    Array.from(byBarcode.entries()).forEach(([bc, qty]) => {
+      aoa.push([bc, qty]);
+    });
+    return { aoa, missingRows, missingPieces, barcodesCount: byBarcode.size };
+  }
+
+  function warnIfMissing(result) {
+    if (result.missingRows > 0) {
+      const ok = confirm(
+        `У ${result.missingRows} размер(ов) нет штрихкода (${result.missingPieces} шт.). ` +
+        `Они не попадут в файл.\n\nПродолжить экспорт?`
+      );
+      return ok;
+    }
+    return true;
+  }
+
+  function exportCsv() {
+    if (!supplyList.length) { alert('Список поставки пуст.'); return; }
+    const result = buildSupplyAoa();
+    if (result.barcodesCount === 0) {
+      alert('Нет ни одного штрихкода — экспорт невозможен. Подтяните номенклатуру через WB API или CSV.');
+      return;
+    }
+    if (!warnIfMissing(result)) return;
+
+    const sep = ';';
+    const esc = (v) => {
+      const s = String(v == null ? '' : v);
+      return /[";\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const csv = '\uFEFF' + result.aoa.map(r => r.map(esc).join(sep)).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `postavka_${dateStamp()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function exportXlsx() {
+    if (!supplyList.length) { alert('Список поставки пуст.'); return; }
+    if (typeof XLSX === 'undefined') {
+      alert('Библиотека XLSX не загрузилась, проверьте интернет-соединение.');
+      return;
+    }
+    const result = buildSupplyAoa();
+    if (result.barcodesCount === 0) {
+      alert('Нет ни одного штрихкода — экспорт невозможен. Подтяните номенклатуру через WB API или CSV.');
+      return;
+    }
+    if (!warnIfMissing(result)) return;
+
+    // Баркоды храним как текст, чтобы не потерять ведущие нули и не скатиться в научную нотацию
+    const ws = XLSX.utils.aoa_to_sheet(result.aoa);
+    for (let i = 1; i < result.aoa.length; i++) {
+      const cellRef = XLSX.utils.encode_cell({ r: i, c: 0 });
+      if (ws[cellRef]) {
+        ws[cellRef].t = 's';
+        ws[cellRef].v = String(ws[cellRef].v);
+      }
+    }
+    ws['!cols'] = [{ wch: 18 }, { wch: 14 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Поставка');
+    XLSX.writeFile(wb, `postavka_${dateStamp()}.xlsx`);
+  }
+
+  // Инициализация
+  renderSizeRows([]);
+  refreshSupplyView();
+  showCacheStatus();
+
+  $('supAddSize').addEventListener('click', () => addSizeRow());
+  $('supCalc').addEventListener('click', addToSupply);
+  $('supSave').addEventListener('click', saveRostovkaHandler);
+  $('supClear').addEventListener('click', clearSupplyList);
+  $('supExportCsv').addEventListener('click', exportCsv);
+  $('supExportXlsx').addEventListener('click', exportXlsx);
+  $('supVendorCode').addEventListener('blur', () => {
+    // Задержка, чтобы mousedown на элементе dropdown успел сработать
+    setTimeout(hideVcDropdown, 150);
+    lookupRostovka();
+  });
+  $('supVendorCode').addEventListener('input', renderVcDropdown);
+  $('supVendorCode').addEventListener('focus', renderVcDropdown);
+  $('supVendorCode').addEventListener('keydown', onVcKeyDown);
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#supVcWrap')) hideVcDropdown();
+  });
+
+  $('supPull').addEventListener('click', pullSizesLocal);
+  $('supPullApi').addEventListener('click', pullFromWbApi);
+  $('supCsvFile').addEventListener('change', onCsvFileChange);
+
+  // Делегирование для кнопок удаления строк размеров
+  $('supSizesRows').addEventListener('click', (e) => {
+    const btn = e.target.closest('.sup-del');
+    if (!btn) return;
+    const row = btn.closest('.sup-size-row');
+    if (!row) return;
+    const all = document.querySelectorAll('#supSizesRows .sup-size-row');
+    if (all.length <= 1) {
+      row.querySelector('.sup-size').value = '';
+      row.querySelector('.sup-perbox').value = '';
+      row.setAttribute('data-barcode', '');
+      const bcCell = row.querySelector('.sup-barcode-cell');
+      if (bcCell) bcCell.innerHTML = '<span style="color:var(--danger)">нет</span>';
+    } else {
+      row.remove();
+    }
+  });
+
+  // При ручном редактировании размера — сбросить привязанный баркод
+  $('supSizesRows').addEventListener('input', (e) => {
+    if (!e.target.classList.contains('sup-size')) return;
+    const row = e.target.closest('.sup-size-row');
+    if (!row) return;
+    row.setAttribute('data-barcode', '');
+    const bcCell = row.querySelector('.sup-barcode-cell');
+    if (bcCell) {
+      bcCell.innerHTML = '<span style="color:var(--danger)">нет</span>';
+      bcCell.setAttribute('title', '');
+    }
+  });
+
+  // Делегирование для удаления строк из накопленного списка поставки
+  $('supResult').addEventListener('click', (e) => {
+    const btn = e.target.closest('.sup-row-del');
+    if (!btn) return;
+    const idx = Number(btn.getAttribute('data-idx'));
+    if (!isNaN(idx)) removeSupplyItem(idx);
+  });
+
+  // ============================================================
+  // OCR: Распознавание фото накладной → пары «артикул + коробки»
+  // ============================================================
+
+  const TESSERACT_CDN = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+  let tesseractLoading = null;
+  let ocrFileBlob = null;
+  let ocrParsedItems = []; // [{ rawLine, vendorCode, boxes, matched:{vendorCode,source}|null, idx }]
+
+  function setOcrStatus(msg, kind) {
+    const el = $('ocrStatus');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.style.color = kind === 'ok' ? 'var(--ok)' : kind === 'bad' ? 'var(--danger)' : 'var(--text-dim)';
+  }
+
+  function loadTesseract() {
+    if (window.Tesseract) return Promise.resolve(window.Tesseract);
+    if (tesseractLoading) return tesseractLoading;
+    tesseractLoading = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = TESSERACT_CDN;
+      s.async = true;
+      s.onload = () => {
+        if (window.Tesseract) resolve(window.Tesseract);
+        else reject(new Error('Tesseract не инициализировался'));
+      };
+      s.onerror = () => reject(new Error('не удалось загрузить Tesseract.js (проверьте интернет)'));
+      document.head.appendChild(s);
+    });
+    return tesseractLoading;
+  }
+
+  function onOcrFileChange(e) {
+    const f = e.target.files && e.target.files[0];
+    console.log('[OCR] file change:', f);
+    if (!f) {
+      setOcrStatus('файл не выбран', 'bad');
+      return;
+    }
+    ocrFileBlob = f;
+    const url = URL.createObjectURL(f);
+    $('ocrPreview').src = url;
+    $('ocrPreviewWrap').style.display = 'block';
+    $('ocrRecognize').disabled = false;
+    $('ocrTextWrap').style.display = 'none';
+    $('ocrText').value = '';
+    $('ocrParsed').innerHTML = '';
+    ocrParsedItems = [];
+    setOcrStatus('файл выбран: ' + f.name + ' (' + Math.round(f.size / 1024) + ' КБ) — нажмите «Распознать»', 'ok');
+  }
+
+  // Конвертируем File/Blob в data URL — Tesseract.js надёжнее работает с data URL,
+  // чем с объектами File при некоторых сборках воркера.
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result);
+      fr.onerror = () => reject(new Error('не удалось прочитать файл'));
+      fr.readAsDataURL(blob);
+    });
+  }
+
+  async function runOcr() {
+    console.log('[OCR] runOcr start, file:', ocrFileBlob);
+    if (!ocrFileBlob) {
+      setOcrStatus('сначала выберите фото', 'bad');
+      return;
+    }
+    $('ocrRecognize').disabled = true;
+    setOcrStatus('загружаю Tesseract.js…');
+
+    let worker = null;
+    try {
+      const T = await loadTesseract();
+      console.log('[OCR] Tesseract loaded, version:', T && T.version);
+
+      setOcrStatus('готовлю распознавание…');
+
+      // Используем worker-based API с явными путями к CDN — это надёжнее,
+      // чем Tesseract.recognize() shorthand, у которого часто ломается
+      // автоматический поиск worker.min.js / tesseract-core / traineddata.
+      const workerOpts = {
+        workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',
+        corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/',
+        langPath: 'https://tessdata.projectnaptha.com/4.0.0',
+        logger: (m) => {
+          if (!m) return;
+          console.log('[OCR]', m);
+          if (m.status === 'recognizing text') {
+            const pct = Math.round((m.progress || 0) * 100);
+            setOcrStatus('распознаю текст (' + pct + '%)…');
+          } else if (m.status === 'loading language traineddata') {
+            const pct = Math.round((m.progress || 0) * 100);
+            setOcrStatus('загружаю языковые модели (' + pct + '%)…');
+          } else if (m.status === 'initializing api') {
+            setOcrStatus('инициализация…');
+          } else if (m.status) {
+            setOcrStatus(m.status + '…');
+          }
+        },
+        errorHandler: (err) => {
+          console.error('[OCR] worker errorHandler:', err);
+        }
+      };
+
+      // createWorker в v5 принимает (langs, oem, options)
+      worker = await T.createWorker(['rus', 'eng'], 1, workerOpts);
+      console.log('[OCR] worker created');
+
+      // Конвертируем файл в data URL — это самый совместимый формат
+      const dataUrl = await blobToDataUrl(ocrFileBlob);
+      console.log('[OCR] dataUrl length:', dataUrl.length);
+
+      setOcrStatus('распознаю текст (0%)…');
+      const res = await worker.recognize(dataUrl);
+      console.log('[OCR] recognize result:', res);
+
+      const text = (res && res.data && res.data.text) || '';
+      $('ocrText').value = text;
+      $('ocrTextWrap').style.display = 'block';
+
+      if (!text.trim()) {
+        setOcrStatus('готово, но текст пуст — возможно, фото слишком размытое', 'bad');
+      } else {
+        setOcrStatus('готово (' + text.length + ' символов) — нажмите «Извлечь артикулы»', 'ok');
+      }
+    } catch (err) {
+      console.error('[OCR] error:', err);
+      const msg = (err && (err.message || err.toString())) || 'неизвестная ошибка';
+      setOcrStatus('ошибка: ' + msg + ' (подробности в консоли браузера F12)', 'bad');
+      // Показываем ошибку в блоке результата тоже
+      $('ocrParsed').innerHTML = '<div class="info danger"><strong>Ошибка распознавания:</strong> ' +
+        escHtml(msg) +
+        '<br><br><strong>Что попробовать:</strong><br>' +
+        '• Откройте консоль браузера (F12) и посмотрите подробную ошибку<br>' +
+        '• Проверьте интернет — Tesseract подгружает ~10 МБ языковых моделей с CDN при первом запуске<br>' +
+        '• Если блокирует корпоративный файрвол, скажите — добавлю альтернативный путь загрузки<br>' +
+        '• Попробуйте открыть файл по http://localhost/... вместо file:// (некоторые браузеры блокируют worker из file://)</div>';
+    } finally {
+      if (worker) {
+        try { await worker.terminate(); } catch (e) { console.warn('[OCR] terminate error:', e); }
+      }
+      $('ocrRecognize').disabled = false;
+    }
+  }
+
+  function clearOcr() {
+    ocrFileBlob = null;
+    ocrParsedItems = [];
+    $('ocrFile').value = '';
+    $('ocrPreview').src = '';
+    $('ocrPreviewWrap').style.display = 'none';
+    $('ocrTextWrap').style.display = 'none';
+    $('ocrText').value = '';
+    $('ocrParsed').innerHTML = '';
+    $('ocrRecognize').disabled = true;
+    setOcrStatus('');
+  }
+
+  // Собираем индекс известных артикулов: ростовки + номенклатура.
+  // Возвращаем Map: normKey → { vendorCode, source }
+  function buildKnownArticlesIndex() {
+    const idx = new Map();
+    try {
+      const ros = loadRostovki();
+      Object.values(ros).forEach(r => {
+        if (r && r.vendorCode) {
+          idx.set(normKey(r.vendorCode), { vendorCode: r.vendorCode, source: 'rostovka' });
+        }
+      });
+    } catch {}
+    try {
+      const nom = loadNomen();
+      Object.values(nom.byVc || {}).forEach(r => {
+        if (r && r.vendorCode) {
+          const k = normKey(r.vendorCode);
+          if (!idx.has(k)) idx.set(k, { vendorCode: r.vendorCode, source: 'nomenclature' });
+        }
+      });
+    } catch {}
+    return idx;
+  }
+
+  // Расстояние Левенштейна (для устойчивости к ошибкам OCR)
+  function levenshtein(a, b) {
+    a = String(a || ''); b = String(b || '');
+    if (a === b) return 0;
+    if (!a.length) return b.length;
+    if (!b.length) return a.length;
+    const v0 = new Array(b.length + 1);
+    const v1 = new Array(b.length + 1);
+    for (let i = 0; i <= b.length; i++) v0[i] = i;
+    for (let i = 0; i < a.length; i++) {
+      v1[0] = i + 1;
+      for (let j = 0; j < b.length; j++) {
+        const cost = a[i] === b[j] ? 0 : 1;
+        v1[j + 1] = Math.min(v1[j] + 1, v0[j + 1] + 1, v0[j] + cost);
+      }
+      for (let j = 0; j <= b.length; j++) v0[j] = v1[j];
+    }
+    return v1[b.length];
+  }
+
+  // Нормализация для устойчивого сравнения: частые OCR-ошибки
+  // (кириллица↔латиница визуально одинаковых букв, О↔0, І↔1, etc.)
+  function ocrNormalize(s) {
+    return String(s || '')
+      .toLowerCase()
+      .replace(/[оo]/g, 'o')
+      .replace(/[аa]/g, 'a')
+      .replace(/[еe]/g, 'e')
+      .replace(/[рp]/g, 'p')
+      .replace(/[сc]/g, 'c')
+      .replace(/[хx]/g, 'x')
+      .replace(/[кk]/g, 'k')
+      .replace(/[нh]/g, 'h')
+      .replace(/[мm]/g, 'm')
+      .replace(/[тt]/g, 't')
+      .replace(/[вb]/g, 'b')
+      .replace(/[уy]/g, 'y')
+      .replace(/[іi]/g, 'i')
+      .replace(/[0о]/g, '0')
+      .replace(/\s+/g, '');
+  }
+
+  // Матчинг токена против известных артикулов: точный → нормализованный → fuzzy
+  function matchArticle(token, knownIdx, knownNormMap) {
+    if (!token) return null;
+    const k = normKey(token);
+    if (knownIdx.has(k)) return knownIdx.get(k);
+
+    const kn = ocrNormalize(token);
+    if (knownNormMap.has(kn)) return knownNormMap.get(kn);
+
+    // Fuzzy: для токенов длиной ≥ 5 допустим distance ≤ 2, для ≥ 8 — ≤ 3
+    if (kn.length < 4) return null;
+    const maxDist = kn.length >= 8 ? 3 : (kn.length >= 5 ? 2 : 1);
+    let best = null;
+    let bestDist = Infinity;
+    for (const [nk, rec] of knownNormMap.entries()) {
+      if (Math.abs(nk.length - kn.length) > maxDist) continue;
+      const d = levenshtein(kn, nk);
+      if (d < bestDist) { bestDist = d; best = rec; }
+      if (d === 0) break;
+    }
+    return (best && bestDist <= maxDist) ? best : null;
+  }
+
+  // Парсер строк накладной.
+  // Стратегия: для каждой строки текста ищем (а) все «артикулоподобные» токены
+  // и (б) все числа. Если артикул нашёлся в базе — берём его и ближайшее число
+  // как количество коробок. Иначе берём самый длинный артикулоподобный токен
+  // и последнее число — как предположение (помечаем «не найдено в базе»).
+  function parseInvoiceText(text) {
+    const knownIdx = buildKnownArticlesIndex();
+    const knownNormMap = new Map();
+    for (const [k, v] of knownIdx.entries()) {
+      knownNormMap.set(ocrNormalize(v.vendorCode), v);
+    }
+
+    // Нормализуем разные типы тире к обычному ASCII-дефису — Tesseract на рукописи
+    // часто выдаёт en-dash/em-dash/minus вместо дефиса.
+    const normalized = String(text || '').replace(/[‐‑‒–—―−]/g, '-');
+    const lines = normalized.split(/\r?\n/);
+    const items = [];
+
+    // Паттерн полного артикула: [буква?]<цифры 2-6>-<цифры 1-4>
+    //   примеры: A519-2, B512-3, 519-2, A9288-5
+    // Группа 1 — «база» (A519, A9288, 519), группа 2 — суффикс размера.
+    const FULL_ART_RE = /([A-Za-zА-Яа-я]?\d{2,6})-(\d{1,4})/;
+    // Паттерн «продолжения»: отдельно стоящий -N (не внутри слова, не часть числа).
+    // Используем группы: (пред.символ|^) - (цифры).
+    const CONT_ART_RE = /(^|[^A-Za-zА-Яа-я0-9])-(\d{1,4})(?!\d)/;
+
+    let lastBase = null; // последний увиденный префикс, например "A519"
+
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+      if (line.length < 2) continue;
+
+      // --- Шаг 1: определяем артикул и его позицию в строке ---
+      let vendorCode = null;
+      let artPos = -1;
+      let artLen = 0;
+      let isContinuation = false;
+
+      const full = line.match(FULL_ART_RE);
+      if (full) {
+        vendorCode = full[0];
+        artPos = full.index;
+        artLen = full[0].length;
+        lastBase = full[1]; // запоминаем базу для следующих строк-продолжений
+      } else if (lastBase) {
+        // Нет полного артикула, но есть предыдущая база — ищем «-N»
+        const cont = line.match(CONT_ART_RE);
+        if (cont) {
+          const sizePart = cont[2];
+          vendorCode = lastBase + '-' + sizePart;
+          artPos = cont.index + (cont[1] ? cont[1].length : 0);
+          artLen = 1 + sizePart.length;
+          isContinuation = true;
+        }
+      }
+
+      if (!vendorCode) continue;
+
+      // --- Шаг 2: ищем количество коробок ---
+      // Все числа в строке, исключая цифры внутри самого артикула.
+      const nums = [];
+      let m;
+      const numRe = /\b(\d{1,4})\b/g;
+      while ((m = numRe.exec(line)) !== null) {
+        // Пропускаем числа, которые являются частью артикула
+        if (m.index >= artPos && m.index < artPos + artLen) continue;
+        const n = parseInt(m[1], 10);
+        if (n >= 1 && n <= 9999) nums.push({ n, pos: m.index });
+      }
+
+      if (!nums.length) continue;
+
+      // Числа после артикула имеют приоритет.
+      // Первое число ПОСЛЕ артикула = количество коробок.
+      // (Это работает и для двухколоночных накладных: справа идёт номер строки
+      // параллельного столбца, но он будет вторым, а не первым.)
+      const afterArt = nums.filter(x => x.pos > artPos + artLen);
+      let boxes;
+      if (afterArt.length) {
+        boxes = afterArt[0].n;
+      } else {
+        // Если после артикула чисел нет — берём последнее число до артикула
+        // (это может быть номер строки перед артикулом, но он же — единственный кандидат).
+        boxes = nums[nums.length - 1].n;
+      }
+
+      // Проверяем вменяемость значения: коробок обычно 1-999
+      if (boxes < 1 || boxes > 9999) continue;
+
+      // Пытаемся матчить артикул с базой через fuzzy
+      const matched = matchArticle(vendorCode, knownIdx, knownNormMap);
+      const finalVc = matched ? matched.vendorCode : vendorCode;
+
+      items.push({
+        rawLine: isContinuation ? (line + '  →  ' + vendorCode) : line,
+        vendorCode: finalVc,
+        boxes,
+        matched: matched || null
+      });
+    }
+
+    // Дедупликация по vendorCode: суммируем коробки если один и тот же артикул
+    // встретился несколько раз.
+    const dedup = new Map();
+    for (const it of items) {
+      const k = normKey(it.vendorCode);
+      if (dedup.has(k)) {
+        const prev = dedup.get(k);
+        prev.boxes += it.boxes;
+        prev.rawLine += ' + ' + it.rawLine;
+      } else {
+        dedup.set(k, Object.assign({}, it));
+      }
+    }
+    return Array.from(dedup.values());
+  }
+
+  function renderOcrParsed() {
+    const box = $('ocrParsed');
+    if (!ocrParsedItems.length) {
+      box.innerHTML = '<div class="info">Ничего не распознано. Проверьте текст выше и нажмите «Извлечь артикулы» ещё раз.</div>';
+      return;
+    }
+    const rows = ocrParsedItems.map((it, i) => {
+      const matchBadge = it.matched
+        ? '<span style="color:var(--ok)">✓ ' + escHtml(it.matched.source === 'rostovka' ? 'ростовка' : 'номенклатура') + '</span>'
+        : '<span style="color:var(--danger)">не найдено</span>';
+      return `
+        <tr>
+          <td><input type="checkbox" class="ocr-pick" data-idx="${i}" ${it.matched ? 'checked' : ''}/></td>
+          <td style="font-family:'JetBrains Mono', ui-monospace, monospace; font-size:11px; color:var(--text-dim)">${escHtml(it.rawLine)}</td>
+          <td><input type="text" class="ocr-vc" data-idx="${i}" value="${escHtml(it.vendorCode)}" style="padding:4px 8px; font-size:12px; width:140px"/></td>
+          <td><input type="number" min="1" class="ocr-boxes" data-idx="${i}" value="${it.boxes}" style="padding:4px 8px; font-size:12px; width:70px"/></td>
+          <td>${matchBadge}</td>
+        </tr>`;
+    }).join('');
+
+    const okCount = ocrParsedItems.filter(x => x.matched).length;
+    box.innerHTML = `
+      <h4 style="margin:0 0 6px; font-size:13px; font-weight:500; color:var(--text-dim)">Найдено позиций: ${ocrParsedItems.length} (в базе: ${okCount})</h4>
+      <div style="overflow-x:auto">
+        <table style="width:100%; border-collapse:collapse; font-size:12px">
+          <thead>
+            <tr style="background:var(--surface-2); text-align:left">
+              <th style="padding:8px 6px; width:30px"></th>
+              <th style="padding:8px 6px">Распознанная строка</th>
+              <th style="padding:8px 6px">Артикул</th>
+              <th style="padding:8px 6px" class="num">Коробок</th>
+              <th style="padding:8px 6px">Статус</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn" id="ocrAddAll" type="button">Добавить отмеченные в поставку</button>
+      </div>
+      <p class="muted" style="margin-top:8px">Позиции «не найдено» тоже можно отметить, но для них придётся вручную указать ростовку в блоке «Создать поставку» выше.</p>
+    `;
+
+    $('ocrAddAll').addEventListener('click', addOcrItemsToSupply);
+  }
+
+  function parseOcrText() {
+    const txt = $('ocrText').value;
+    if (!txt.trim()) {
+      setOcrStatus('текст пуст — сначала распознайте фото', 'bad');
+      return;
+    }
+    ocrParsedItems = parseInvoiceText(txt);
+    renderOcrParsed();
+    setOcrStatus('разобрано строк: ' + ocrParsedItems.length, 'ok');
+  }
+
+  // Применяем правки пользователя из таблицы обратно в ocrParsedItems
+  function syncOcrEdits() {
+    const box = $('ocrParsed');
+    box.querySelectorAll('.ocr-vc').forEach(inp => {
+      const i = Number(inp.getAttribute('data-idx'));
+      if (ocrParsedItems[i]) ocrParsedItems[i].vendorCode = inp.value.trim();
+    });
+    box.querySelectorAll('.ocr-boxes').forEach(inp => {
+      const i = Number(inp.getAttribute('data-idx'));
+      if (ocrParsedItems[i]) ocrParsedItems[i].boxes = Math.max(1, Number(inp.value) || 1);
+    });
+  }
+
+  // Добавляем отмеченные галочкой позиции в общий список поставки.
+  // Для каждой ищем ростовку через findSizesFor(); если не нашли — открываем
+  // форму ввода с предзаполненным артикулом, чтобы пользователь сам задал размеры.
+  function addOcrItemsToSupply() {
+    syncOcrEdits();
+    const box = $('ocrParsed');
+    const picks = [];
+    box.querySelectorAll('.ocr-pick').forEach(cb => {
+      if (cb.checked) picks.push(Number(cb.getAttribute('data-idx')));
+    });
+    if (!picks.length) {
+      setOcrStatus('не отмечено ни одной позиции', 'bad');
+      return;
+    }
+
+    let added = 0;
+    let skipped = 0;
+    const manualQueue = [];
+
+    for (const i of picks) {
+      const it = ocrParsedItems[i];
+      if (!it || !it.vendorCode || !it.boxes) { skipped++; continue; }
+
+      const found = findSizesFor(it.vendorCode, '');
+      if (!found || !found.sizes || !found.sizes.length || !found.sizes.some(s => s.perBox > 0)) {
+        manualQueue.push(it);
+        skipped++;
+        continue;
+      }
+
+      // Строим supply item напрямую (без DOM), как делает addToSupply
+      const boxes = it.boxes;
+      const rows = found.sizes.map(s => ({
+        size: s.size,
+        perBox: s.perBox || 0,
+        boxes: boxes,
+        total: (s.perBox || 0) * boxes,
+        barcode: s.barcode || ''
+      }));
+      const sumPerBox = rows.reduce((a, r) => a + r.perBox, 0);
+      if (sumPerBox <= 0) { manualQueue.push(it); skipped++; continue; }
+
+      const totalPieces = sumPerBox * boxes;
+      const missingBc = rows.filter(r => r.total > 0 && !r.barcode).length;
+      const item = {
+        vendorCode: found.vendorCode || it.vendorCode,
+        nmId: found.nmId || '',
+        boxes,
+        sumPerBox,
+        totalPieces,
+        rows,
+        missingBc
+      };
+
+      const idx = supplyList.findIndex(x => normKey(x.vendorCode) === normKey(item.vendorCode));
+      if (idx !== -1) supplyList[idx] = item;
+      else supplyList.push(item);
+      added++;
+    }
+
+    persistSupply();
+    refreshSupplyView();
+
+    // Если есть не-найденные — предзаполняем форму первым из них, чтобы
+    // пользователь мог быстро задать ростовку.
+    if (manualQueue.length) {
+      const first = manualQueue[0];
+      $('supVendorCode').value = first.vendorCode;
+      $('supBoxes').value = String(first.boxes);
+      // Попытаемся подтянуть размеры хоть из чего-то
+      try { lookupRostovka(); } catch {}
+      try { pullSizesLocal(); } catch {}
+    }
+
+    let msg = 'добавлено: ' + added;
+    if (skipped) msg += ', требуют ручной ростовки: ' + skipped;
+    if (manualQueue.length) {
+      msg += ' — первая позиция загружена в форму «Создать поставку» выше';
+    }
+    setOcrStatus(msg, added ? 'ok' : 'bad');
+
+    // Прокручиваем к блоку «Создать поставку» если есть ручные позиции,
+    // иначе к списку поставки.
+    if (manualQueue.length) {
+      $('supVendorCode').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      $('supVendorCode').focus();
+    } else {
+      $('supResult').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  // Инициализация OCR-блока
+  $('ocrFile').addEventListener('change', onOcrFileChange);
+  $('ocrRecognize').addEventListener('click', runOcr);
+  $('ocrClear').addEventListener('click', clearOcr);
+  $('ocrParse').addEventListener('click', parseOcrText);
+})();
+</script>
+</body>
+</html>
