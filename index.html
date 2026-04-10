@@ -611,8 +611,8 @@ C-340,4,132,12,46.21"></textarea>
     <p class="muted" style="margin-bottom:14px">Загрузите фото накладной (печатной или рукописной) — система распознает текст и извлечёт пары «артикул → количество коробок». Распознанный текст можно поправить вручную перед извлечением. Поддерживается сокращённая форма записи: если строка начинается с <code style="background:var(--surface-2); padding:1px 4px; border-radius:3px">-N</code>, она читается как «та же база, что в предыдущей строке, но другой размер» (например, после <code style="background:var(--surface-2); padding:1px 4px; border-radius:3px">A519-2</code> запись <code style="background:var(--surface-2); padding:1px 4px; border-radius:3px">-5</code> превращается в <code style="background:var(--surface-2); padding:1px 4px; border-radius:3px">A519-5</code>). Найденные артикулы сравниваются с сохранёнными ростовками и WB-номенклатурой.</p>
 
     <div class="btn-row">
-      <label class="btn ghost" for="ocrFile" style="cursor:pointer; margin:0">Выбрать фото</label>
-      <input type="file" id="ocrFile" accept="image/*" style="display:none"/>
+      <button class="btn ghost" id="ocrFileBtn" type="button">Выбрать фото</button>
+      <input type="file" id="ocrFile" accept="image/*" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0"/>
       <button class="btn ghost" id="ocrRecognize" type="button" disabled>Распознать</button>
       <button class="btn ghost" id="ocrClear" type="button">Очистить</button>
       <span id="ocrStatus" class="muted" style="margin-left:6px; align-self:center"></span>
@@ -4233,6 +4233,24 @@ renderProgress();
   }
 
   // Инициализация OCR-блока
+  // Кнопка «Выбрать фото» — программно триггерим клик по скрытому input.
+  // Так надёжнее, чем <label for="...">: label иногда не работает если
+  // input скрыт через display:none, либо если CSS фреймворка перехватывает клик.
+  $('ocrFileBtn').addEventListener('click', () => {
+    ocrDebug('«Выбрать фото» clicked, triggering file input...');
+    const input = $('ocrFile');
+    if (!input) {
+      ocrDebugError('ocrFile input not found!');
+      return;
+    }
+    try {
+      input.click();
+      ocrDebug('file input .click() called successfully');
+    } catch (err) {
+      ocrDebugError('input.click() threw:', err);
+    }
+  });
+
   $('ocrFile').addEventListener('change', onOcrFileChange);
   $('ocrRecognize').addEventListener('click', runOcr);
   $('ocrClear').addEventListener('click', clearOcr);
