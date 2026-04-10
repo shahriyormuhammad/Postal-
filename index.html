@@ -631,6 +631,15 @@ C-340,4,132,12,46.21"></textarea>
     </div>
 
     <div id="ocrParsed" style="margin-top:14px"></div>
+
+    <details id="ocrDebugWrap" style="margin-top:14px; border:1px solid var(--border); border-radius:8px; background:var(--surface-2); padding:8px 12px" open>
+      <summary style="cursor:pointer; font-size:12px; color:var(--text-dim); user-select:none">Диагностический лог (для отладки)</summary>
+      <pre id="ocrDebug" style="margin:8px 0 0; padding:8px; background:#0b0d12; color:#c6e7ff; font-family:'JetBrains Mono', ui-monospace, monospace; font-size:10px; line-height:1.4; border-radius:6px; max-height:240px; overflow:auto; white-space:pre-wrap; word-break:break-all">(пусто — нажмите «Распознать», здесь появится лог)</pre>
+      <div class="btn-row" style="margin-top:6px">
+        <button class="btn ghost" id="ocrDebugClear" type="button" style="padding:4px 10px; font-size:11px">Очистить лог</button>
+        <button class="btn ghost" id="ocrDebugCopy" type="button" style="padding:4px 10px; font-size:11px">Скопировать лог</button>
+      </div>
+    </details>
   </div>
 
   <!-- Блок «Построить план» (географическое распределение по складам WB)
@@ -3661,6 +3670,51 @@ renderProgress();
     el.style.color = kind === 'ok' ? 'var(--ok)' : kind === 'bad' ? 'var(--danger)' : 'var(--text-dim)';
   }
 
+  // Видимый на странице диагностический лог: всё, что раньше шло только в
+  // console.log('[OCR]'...) теперь дополнительно пишется сюда, чтобы можно было
+  // диагностировать проблемы без F12.
+  function ocrDebug(/*...args*/) {
+    const args = Array.prototype.slice.call(arguments);
+    // Форматируем аргументы в строку
+    const parts = args.map(a => {
+      if (a == null) return String(a);
+      if (typeof a === 'string') return a;
+      if (a instanceof Error) return (a.name || 'Error') + ': ' + (a.message || a.toString()) + (a.stack ? '\n' + a.stack : '');
+      try { return JSON.stringify(a); } catch { return String(a); }
+    });
+    const line = parts.join(' ');
+    // В консоль — как раньше
+    try { console.log('[OCR]', line); } catch {}
+    // И на страницу
+    const el = document.getElementById('ocrDebug');
+    if (el) {
+      if (el.textContent.indexOf('(пусто') === 0) el.textContent = '';
+      const ts = new Date().toLocaleTimeString('ru-RU', { hour12: false }) +
+                 '.' + String(new Date().getMilliseconds()).padStart(3, '0');
+      el.textContent += '[' + ts + '] ' + line + '\n';
+      el.scrollTop = el.scrollHeight;
+    }
+  }
+
+  function ocrDebugError(/*...args*/) {
+    const args = Array.prototype.slice.call(arguments);
+    const parts = args.map(a => {
+      if (a == null) return String(a);
+      if (typeof a === 'string') return a;
+      if (a instanceof Error) return (a.name || 'Error') + ': ' + (a.message || a.toString()) + (a.stack ? '\n' + a.stack : '');
+      try { return JSON.stringify(a); } catch { return String(a); }
+    });
+    const line = 'ERROR: ' + parts.join(' ');
+    try { console.error('[OCR]', line); } catch {}
+    const el = document.getElementById('ocrDebug');
+    if (el) {
+      if (el.textContent.indexOf('(пусто') === 0) el.textContent = '';
+      const ts = new Date().toLocaleTimeString('ru-RU', { hour12: false });
+      el.textContent += '[' + ts + '] ❌ ' + line + '\n';
+      el.scrollTop = el.scrollHeight;
+    }
+  }
+
   function loadTesseract() {
     if (window.Tesseract) return Promise.resolve(window.Tesseract);
     if (tesseractLoading) return tesseractLoading;
@@ -3680,7 +3734,7 @@ renderProgress();
 
   function onOcrFileChange(e) {
     const f = e.target.files && e.target.files[0];
-    console.log('[OCR] file change:', f);
+    ocrDebug('file change:', f ? (f.name + ', ' + f.size + ' bytes, type=' + f.type) : 'null');
     if (!f) {
       setOcrStatus('файл не выбран', 'bad');
       return;
@@ -3709,18 +3763,21 @@ renderProgress();
   }
 
   async function runOcr() {
-    console.log('[OCR] runOcr start, file:', ocrFileBlob);
+    ocrDebug('runOcr start, file:', ocrFileBlob ? (ocrFileBlob.name + ' / ' + ocrFileBlob.size + ' bytes') : 'null');
     if (!ocrFileBlob) {
       setOcrStatus('сначала выберите фото', 'bad');
+      ocrDebugError('no file selected');
       return;
     }
     $('ocrRecognize').disabled = true;
     setOcrStatus('загружаю Tesseract.js…');
+    ocrDebug('loading Tesseract.js from CDN:', TESSERACT_CDN);
 
     let worker = null;
     try {
       const T = await loadTesseract();
-      console.log('[OCR] Tesseract loaded, version:', T && T.version);
+      ocrDebug('Tesseract loaded, version:', (T && T.version) || '(unknown)');
+      ocrDebug('Tesseract.createWorker is', typeof (T && T.createWorker));
 
       setOcrStatus('готовлю распознавание…');
 
@@ -3733,7 +3790,7 @@ renderProgress();
         langPath: 'https://tessdata.projectnaptha.com/4.0.0',
         logger: (m) => {
           if (!m) return;
-          console.log('[OCR]', m);
+          ocrDebug('worker log:', m.status || '?', 'progress=' + (m.progress != null ? Math.round(m.progress * 100) + '%' : '-'));
           if (m.status === 'recognizing text') {
             const pct = Math.round((m.progress || 0) * 100);
             setOcrStatus('распознаю текст (' + pct + '%)…');
@@ -3747,21 +3804,25 @@ renderProgress();
           }
         },
         errorHandler: (err) => {
-          console.error('[OCR] worker errorHandler:', err);
+          ocrDebugError('worker errorHandler:', err);
         }
       };
+      ocrDebug('worker opts:', JSON.stringify({ wp: workerOpts.workerPath, cp: workerOpts.corePath, lp: workerOpts.langPath }));
 
       // createWorker в v5 принимает (langs, oem, options)
+      ocrDebug('calling createWorker(["rus","eng"], 1, opts)...');
       worker = await T.createWorker(['rus', 'eng'], 1, workerOpts);
-      console.log('[OCR] worker created');
+      ocrDebug('worker created OK');
 
       // Конвертируем файл в data URL — это самый совместимый формат
+      ocrDebug('converting file to data URL...');
       const dataUrl = await blobToDataUrl(ocrFileBlob);
-      console.log('[OCR] dataUrl length:', dataUrl.length);
+      ocrDebug('data URL length:', dataUrl.length, 'bytes (first 50 chars:', dataUrl.substring(0, 50) + '...)');
 
       setOcrStatus('распознаю текст (0%)…');
+      ocrDebug('calling worker.recognize(dataUrl)...');
       const res = await worker.recognize(dataUrl);
-      console.log('[OCR] recognize result:', res);
+      ocrDebug('recognize done. text length:', (res && res.data && res.data.text ? res.data.text.length : 0));
 
       const text = (res && res.data && res.data.text) || '';
       $('ocrText').value = text;
@@ -3769,24 +3830,22 @@ renderProgress();
 
       if (!text.trim()) {
         setOcrStatus('готово, но текст пуст — возможно, фото слишком размытое', 'bad');
+        ocrDebug('WARNING: recognized text is empty');
       } else {
         setOcrStatus('готово (' + text.length + ' символов) — нажмите «Извлечь артикулы»', 'ok');
       }
     } catch (err) {
-      console.error('[OCR] error:', err);
+      ocrDebugError('runOcr caught error:', err);
       const msg = (err && (err.message || err.toString())) || 'неизвестная ошибка';
-      setOcrStatus('ошибка: ' + msg + ' (подробности в консоли браузера F12)', 'bad');
+      setOcrStatus('ошибка: ' + msg + ' (см. диагностический лог ниже)', 'bad');
       // Показываем ошибку в блоке результата тоже
       $('ocrParsed').innerHTML = '<div class="info danger"><strong>Ошибка распознавания:</strong> ' +
         escHtml(msg) +
-        '<br><br><strong>Что попробовать:</strong><br>' +
-        '• Откройте консоль браузера (F12) и посмотрите подробную ошибку<br>' +
-        '• Проверьте интернет — Tesseract подгружает ~10 МБ языковых моделей с CDN при первом запуске<br>' +
-        '• Если блокирует корпоративный файрвол, скажите — добавлю альтернативный путь загрузки<br>' +
-        '• Попробуйте открыть файл по http://localhost/... вместо file:// (некоторые браузеры блокируют worker из file://)</div>';
+        '<br><br>Откройте «Диагностический лог» внизу карточки, скопируйте его кнопкой «Скопировать лог» и пришлите — я починю.</div>';
     } finally {
       if (worker) {
-        try { await worker.terminate(); } catch (e) { console.warn('[OCR] terminate error:', e); }
+        try { await worker.terminate(); ocrDebug('worker terminated'); }
+        catch (e) { ocrDebugError('terminate error:', e); }
       }
       $('ocrRecognize').disabled = false;
     }
@@ -4178,6 +4237,37 @@ renderProgress();
   $('ocrRecognize').addEventListener('click', runOcr);
   $('ocrClear').addEventListener('click', clearOcr);
   $('ocrParse').addEventListener('click', parseOcrText);
+
+  // Кнопки диагностического лога
+  $('ocrDebugClear').addEventListener('click', () => {
+    const el = $('ocrDebug');
+    if (el) el.textContent = '(пусто — нажмите «Распознать», здесь появится лог)';
+  });
+  $('ocrDebugCopy').addEventListener('click', async () => {
+    const el = $('ocrDebug');
+    if (!el) return;
+    const txt = el.textContent || '';
+    try {
+      await navigator.clipboard.writeText(txt);
+      const btn = $('ocrDebugCopy');
+      const prev = btn.textContent;
+      btn.textContent = '✓ скопировано';
+      setTimeout(() => { btn.textContent = prev; }, 1500);
+    } catch (err) {
+      // Fallback: выделяем текст, чтобы пользователь мог скопировать вручную
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      alert('Не удалось скопировать автоматически — текст выделен, нажмите Ctrl+C');
+    }
+  });
+
+  // Стартовая запись в лог — чтобы пользователь видел, что блок живой
+  ocrDebug('OCR block ready. Tesseract will be loaded on first "Распознать" click.');
+  ocrDebug('browser:', navigator.userAgent);
+  ocrDebug('origin:', window.location.origin || window.location.href);
 })();
 </script>
 </body>
