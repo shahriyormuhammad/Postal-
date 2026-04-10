@@ -8,7 +8,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<!-- Tesseract.js подгружается лениво, при первом клике «Распознать» в блоке «Распознать накладную» -->
 <style>
   :root {
     --bg: #f4f5f8;
@@ -607,39 +606,22 @@ C-340,4,132,12,46.21"></textarea>
   </div>
 
   <div class="card">
-    <h3 style="margin-top:0">Распознать накладную</h3>
-    <p class="muted" style="margin-bottom:14px">Загрузите фото накладной (печатной или рукописной) — система распознает текст и извлечёт пары «артикул → количество коробок». Распознанный текст можно поправить вручную перед извлечением. Поддерживается сокращённая форма записи: если строка начинается с <code style="background:var(--surface-2); padding:1px 4px; border-radius:3px">-N</code>, она читается как «та же база, что в предыдущей строке, но другой размер» (например, после <code style="background:var(--surface-2); padding:1px 4px; border-radius:3px">A519-2</code> запись <code style="background:var(--surface-2); padding:1px 4px; border-radius:3px">-5</code> превращается в <code style="background:var(--surface-2); padding:1px 4px; border-radius:3px">A519-5</code>). Найденные артикулы сравниваются с сохранёнными ростовками и WB-номенклатурой.</p>
+    <h3 style="margin-top:0">Накладная</h3>
+    <p class="muted" style="margin-bottom:14px">Вбейте пары «артикул → количество коробок» из бумажной накладной. Система найдёт сохранённую ростовку по артикулу — даже если вы напишете только часть (например, <code style="background:var(--surface-2); padding:1px 4px; border-radius:3px">519-5</code> найдёт сохранённую <code style="background:var(--surface-2); padding:1px 4px; border-radius:3px">А519-5 ТН-10</code>) — и умножит ростовку на указанное количество коробок. Поддерживается сокращённая запись: строка вида <code style="background:var(--surface-2); padding:1px 4px; border-radius:3px">-5</code> читается как «та же база, что в предыдущей строке, но с суффиксом -5» (после <code style="background:var(--surface-2); padding:1px 4px; border-radius:3px">А519-2</code> даст <code style="background:var(--surface-2); padding:1px 4px; border-radius:3px">А519-5</code>). Enter в поле количества добавляет новую строку.</p>
 
-    <div class="btn-row">
-      <button class="btn ghost" id="ocrFileBtn" type="button">Выбрать фото</button>
-      <input type="file" id="ocrFile" accept="image/*" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0"/>
-      <button class="btn ghost" id="ocrRecognize" type="button" disabled>Распознать</button>
-      <button class="btn ghost" id="ocrClear" type="button">Очистить</button>
-      <span id="ocrStatus" class="muted" style="margin-left:6px; align-self:center"></span>
+    <div id="invRows" style="display:flex; flex-direction:column; gap:8px"></div>
+
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn ghost" id="invAddRow" type="button">+ строка</button>
     </div>
 
-    <div id="ocrPreviewWrap" style="margin-top:12px; display:none">
-      <img id="ocrPreview" alt="Превью накладной" style="max-width:100%; max-height:320px; border:1px solid var(--border); border-radius:8px; background:var(--surface-2)"/>
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn" id="invProcess" type="button">Обработать накладную</button>
+      <button class="btn ghost" id="invClearAll" type="button">Очистить</button>
+      <span id="invStatus" class="muted" style="margin-left:6px; align-self:center"></span>
     </div>
 
-    <div id="ocrTextWrap" style="display:none; margin-top:14px">
-      <h4 style="margin:0 0 6px; font-size:13px; font-weight:500; color:var(--text-dim)">Распознанный текст (можно редактировать)</h4>
-      <textarea id="ocrText" rows="8" style="width:100%; box-sizing:border-box; padding:10px; font-family:'JetBrains Mono', ui-monospace, monospace; font-size:12px; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; color:var(--text); resize:vertical"></textarea>
-      <div class="btn-row" style="margin-top:8px">
-        <button class="btn" id="ocrParse" type="button">Извлечь артикулы</button>
-      </div>
-    </div>
-
-    <div id="ocrParsed" style="margin-top:14px"></div>
-
-    <details id="ocrDebugWrap" style="margin-top:14px; border:1px solid var(--border); border-radius:8px; background:var(--surface-2); padding:8px 12px" open>
-      <summary style="cursor:pointer; font-size:12px; color:var(--text-dim); user-select:none">Диагностический лог (для отладки)</summary>
-      <pre id="ocrDebug" style="margin:8px 0 0; padding:8px; background:#0b0d12; color:#c6e7ff; font-family:'JetBrains Mono', ui-monospace, monospace; font-size:10px; line-height:1.4; border-radius:6px; max-height:240px; overflow:auto; white-space:pre-wrap; word-break:break-all">(пусто — нажмите «Распознать», здесь появится лог)</pre>
-      <div class="btn-row" style="margin-top:6px">
-        <button class="btn ghost" id="ocrDebugClear" type="button" style="padding:4px 10px; font-size:11px">Очистить лог</button>
-        <button class="btn ghost" id="ocrDebugCopy" type="button" style="padding:4px 10px; font-size:11px">Скопировать лог</button>
-      </div>
-    </details>
+    <div id="invResult" style="margin-top:14px"></div>
   </div>
 
   <!-- Блок «Построить план» (географическое распределение по складам WB)
@@ -3655,240 +3637,13 @@ renderProgress();
   });
 
   // ============================================================
-  // OCR: Распознавание фото накладной → пары «артикул + коробки»
+  // Накладная: ручной ввод артикулов → автоматическая раскладка
+  // по сохранённой ростовке → добавление в список поставки.
+  // Пользователь пишет «519-5 10» — система находит «А519-5 ТН-10»
+  // в сохранённых ростовках и раскладывает 10 коробок по размерам.
   // ============================================================
 
-  const TESSERACT_CDN = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
-  let tesseractLoading = null;
-  let ocrFileBlob = null;
-  let ocrParsedItems = []; // [{ rawLine, vendorCode, boxes, matched:{vendorCode,source}|null, idx }]
-
-  function setOcrStatus(msg, kind) {
-    const el = $('ocrStatus');
-    if (!el) return;
-    el.textContent = msg || '';
-    el.style.color = kind === 'ok' ? 'var(--ok)' : kind === 'bad' ? 'var(--danger)' : 'var(--text-dim)';
-  }
-
-  // Видимый на странице диагностический лог: всё, что раньше шло только в
-  // console.log('[OCR]'...) теперь дополнительно пишется сюда, чтобы можно было
-  // диагностировать проблемы без F12.
-  function ocrDebug(/*...args*/) {
-    const args = Array.prototype.slice.call(arguments);
-    // Форматируем аргументы в строку
-    const parts = args.map(a => {
-      if (a == null) return String(a);
-      if (typeof a === 'string') return a;
-      if (a instanceof Error) return (a.name || 'Error') + ': ' + (a.message || a.toString()) + (a.stack ? '\n' + a.stack : '');
-      try { return JSON.stringify(a); } catch { return String(a); }
-    });
-    const line = parts.join(' ');
-    // В консоль — как раньше
-    try { console.log('[OCR]', line); } catch {}
-    // И на страницу
-    const el = document.getElementById('ocrDebug');
-    if (el) {
-      if (el.textContent.indexOf('(пусто') === 0) el.textContent = '';
-      const ts = new Date().toLocaleTimeString('ru-RU', { hour12: false }) +
-                 '.' + String(new Date().getMilliseconds()).padStart(3, '0');
-      el.textContent += '[' + ts + '] ' + line + '\n';
-      el.scrollTop = el.scrollHeight;
-    }
-  }
-
-  function ocrDebugError(/*...args*/) {
-    const args = Array.prototype.slice.call(arguments);
-    const parts = args.map(a => {
-      if (a == null) return String(a);
-      if (typeof a === 'string') return a;
-      if (a instanceof Error) return (a.name || 'Error') + ': ' + (a.message || a.toString()) + (a.stack ? '\n' + a.stack : '');
-      try { return JSON.stringify(a); } catch { return String(a); }
-    });
-    const line = 'ERROR: ' + parts.join(' ');
-    try { console.error('[OCR]', line); } catch {}
-    const el = document.getElementById('ocrDebug');
-    if (el) {
-      if (el.textContent.indexOf('(пусто') === 0) el.textContent = '';
-      const ts = new Date().toLocaleTimeString('ru-RU', { hour12: false });
-      el.textContent += '[' + ts + '] ❌ ' + line + '\n';
-      el.scrollTop = el.scrollHeight;
-    }
-  }
-
-  function loadTesseract() {
-    if (window.Tesseract) return Promise.resolve(window.Tesseract);
-    if (tesseractLoading) return tesseractLoading;
-    tesseractLoading = new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = TESSERACT_CDN;
-      s.async = true;
-      s.onload = () => {
-        if (window.Tesseract) resolve(window.Tesseract);
-        else reject(new Error('Tesseract не инициализировался'));
-      };
-      s.onerror = () => reject(new Error('не удалось загрузить Tesseract.js (проверьте интернет)'));
-      document.head.appendChild(s);
-    });
-    return tesseractLoading;
-  }
-
-  function onOcrFileChange(e) {
-    const f = e.target.files && e.target.files[0];
-    ocrDebug('file change:', f ? (f.name + ', ' + f.size + ' bytes, type=' + f.type) : 'null');
-    if (!f) {
-      setOcrStatus('файл не выбран', 'bad');
-      return;
-    }
-    ocrFileBlob = f;
-    const url = URL.createObjectURL(f);
-    $('ocrPreview').src = url;
-    $('ocrPreviewWrap').style.display = 'block';
-    $('ocrRecognize').disabled = false;
-    $('ocrTextWrap').style.display = 'none';
-    $('ocrText').value = '';
-    $('ocrParsed').innerHTML = '';
-    ocrParsedItems = [];
-    setOcrStatus('файл выбран: ' + f.name + ' (' + Math.round(f.size / 1024) + ' КБ) — нажмите «Распознать»', 'ok');
-  }
-
-  // Конвертируем File/Blob в data URL — Tesseract.js надёжнее работает с data URL,
-  // чем с объектами File при некоторых сборках воркера.
-  function blobToDataUrl(blob) {
-    return new Promise((resolve, reject) => {
-      const fr = new FileReader();
-      fr.onload = () => resolve(fr.result);
-      fr.onerror = () => reject(new Error('не удалось прочитать файл'));
-      fr.readAsDataURL(blob);
-    });
-  }
-
-  async function runOcr() {
-    ocrDebug('runOcr start, file:', ocrFileBlob ? (ocrFileBlob.name + ' / ' + ocrFileBlob.size + ' bytes') : 'null');
-    if (!ocrFileBlob) {
-      setOcrStatus('сначала выберите фото', 'bad');
-      ocrDebugError('no file selected');
-      return;
-    }
-    $('ocrRecognize').disabled = true;
-    setOcrStatus('загружаю Tesseract.js…');
-    ocrDebug('loading Tesseract.js from CDN:', TESSERACT_CDN);
-
-    let worker = null;
-    try {
-      const T = await loadTesseract();
-      ocrDebug('Tesseract loaded, version:', (T && T.version) || '(unknown)');
-      ocrDebug('Tesseract.createWorker is', typeof (T && T.createWorker));
-
-      setOcrStatus('готовлю распознавание…');
-
-      // Используем worker-based API с явными путями к CDN — это надёжнее,
-      // чем Tesseract.recognize() shorthand, у которого часто ломается
-      // автоматический поиск worker.min.js / tesseract-core / traineddata.
-      const workerOpts = {
-        workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',
-        corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/',
-        langPath: 'https://tessdata.projectnaptha.com/4.0.0',
-        logger: (m) => {
-          if (!m) return;
-          ocrDebug('worker log:', m.status || '?', 'progress=' + (m.progress != null ? Math.round(m.progress * 100) + '%' : '-'));
-          if (m.status === 'recognizing text') {
-            const pct = Math.round((m.progress || 0) * 100);
-            setOcrStatus('распознаю текст (' + pct + '%)…');
-          } else if (m.status === 'loading language traineddata') {
-            const pct = Math.round((m.progress || 0) * 100);
-            setOcrStatus('загружаю языковые модели (' + pct + '%)…');
-          } else if (m.status === 'initializing api') {
-            setOcrStatus('инициализация…');
-          } else if (m.status) {
-            setOcrStatus(m.status + '…');
-          }
-        },
-        errorHandler: (err) => {
-          ocrDebugError('worker errorHandler:', err);
-        }
-      };
-      ocrDebug('worker opts:', JSON.stringify({ wp: workerOpts.workerPath, cp: workerOpts.corePath, lp: workerOpts.langPath }));
-
-      // createWorker в v5 принимает (langs, oem, options)
-      ocrDebug('calling createWorker(["rus","eng"], 1, opts)...');
-      worker = await T.createWorker(['rus', 'eng'], 1, workerOpts);
-      ocrDebug('worker created OK');
-
-      // Конвертируем файл в data URL — это самый совместимый формат
-      ocrDebug('converting file to data URL...');
-      const dataUrl = await blobToDataUrl(ocrFileBlob);
-      ocrDebug('data URL length:', dataUrl.length, 'bytes (first 50 chars:', dataUrl.substring(0, 50) + '...)');
-
-      setOcrStatus('распознаю текст (0%)…');
-      ocrDebug('calling worker.recognize(dataUrl)...');
-      const res = await worker.recognize(dataUrl);
-      ocrDebug('recognize done. text length:', (res && res.data && res.data.text ? res.data.text.length : 0));
-
-      const text = (res && res.data && res.data.text) || '';
-      $('ocrText').value = text;
-      $('ocrTextWrap').style.display = 'block';
-
-      if (!text.trim()) {
-        setOcrStatus('готово, но текст пуст — возможно, фото слишком размытое', 'bad');
-        ocrDebug('WARNING: recognized text is empty');
-      } else {
-        setOcrStatus('готово (' + text.length + ' символов) — нажмите «Извлечь артикулы»', 'ok');
-      }
-    } catch (err) {
-      ocrDebugError('runOcr caught error:', err);
-      const msg = (err && (err.message || err.toString())) || 'неизвестная ошибка';
-      setOcrStatus('ошибка: ' + msg + ' (см. диагностический лог ниже)', 'bad');
-      // Показываем ошибку в блоке результата тоже
-      $('ocrParsed').innerHTML = '<div class="info danger"><strong>Ошибка распознавания:</strong> ' +
-        escHtml(msg) +
-        '<br><br>Откройте «Диагностический лог» внизу карточки, скопируйте его кнопкой «Скопировать лог» и пришлите — я починю.</div>';
-    } finally {
-      if (worker) {
-        try { await worker.terminate(); ocrDebug('worker terminated'); }
-        catch (e) { ocrDebugError('terminate error:', e); }
-      }
-      $('ocrRecognize').disabled = false;
-    }
-  }
-
-  function clearOcr() {
-    ocrFileBlob = null;
-    ocrParsedItems = [];
-    $('ocrFile').value = '';
-    $('ocrPreview').src = '';
-    $('ocrPreviewWrap').style.display = 'none';
-    $('ocrTextWrap').style.display = 'none';
-    $('ocrText').value = '';
-    $('ocrParsed').innerHTML = '';
-    $('ocrRecognize').disabled = true;
-    setOcrStatus('');
-  }
-
-  // Собираем индекс известных артикулов: ростовки + номенклатура.
-  // Возвращаем Map: normKey → { vendorCode, source }
-  function buildKnownArticlesIndex() {
-    const idx = new Map();
-    try {
-      const ros = loadRostovki();
-      Object.values(ros).forEach(r => {
-        if (r && r.vendorCode) {
-          idx.set(normKey(r.vendorCode), { vendorCode: r.vendorCode, source: 'rostovka' });
-        }
-      });
-    } catch {}
-    try {
-      const nom = loadNomen();
-      Object.values(nom.byVc || {}).forEach(r => {
-        if (r && r.vendorCode) {
-          const k = normKey(r.vendorCode);
-          if (!idx.has(k)) idx.set(k, { vendorCode: r.vendorCode, source: 'nomenclature' });
-        }
-      });
-    } catch {}
-    return idx;
-  }
-
-  // Расстояние Левенштейна (для устойчивости к ошибкам OCR)
+  // Расстояние Левенштейна — для устойчивости к опечаткам
   function levenshtein(a, b) {
     a = String(a || ''); b = String(b || '');
     if (a === b) return 0;
@@ -3908,8 +3663,8 @@ renderProgress();
     return v1[b.length];
   }
 
-  // Нормализация для устойчивого сравнения: частые OCR-ошибки
-  // (кириллица↔латиница визуально одинаковых букв, О↔0, І↔1, etc.)
+  // Нормализация для устойчивого сравнения: кириллица↔латиница визуально
+  // одинаковых букв, убираем пробелы и регистр.
   function ocrNormalize(s) {
     return String(s || '')
       .toLowerCase()
@@ -3926,366 +3681,303 @@ renderProgress();
       .replace(/[вb]/g, 'b')
       .replace(/[уy]/g, 'y')
       .replace(/[іi]/g, 'i')
-      .replace(/[0о]/g, '0')
       .replace(/\s+/g, '');
   }
 
-  // Матчинг токена против известных артикулов: точный → нормализованный → fuzzy
-  function matchArticle(token, knownIdx, knownNormMap) {
-    if (!token) return null;
-    const k = normKey(token);
-    if (knownIdx.has(k)) return knownIdx.get(k);
+  // findBestRostovkaMatch(query) — поиск сохранённой ростовки по частичному
+  // вводу пользователя. Возвращает { record, matchType } или null.
+  // Стратегия (по убыванию приоритета):
+  //   1. точное совпадение normKey
+  //   2. подстрока: query ⊂ vendorCode (например, «519-5» ⊂ «А519-5 ТН-10»)
+  //   3. подстрока в нормализованном виде (кириллица↔латиница)
+  //   4. расстояние Левенштейна ≤ 3 на нормализованных
+  function findBestRostovkaMatch(query) {
+    const q = String(query || '').trim();
+    if (!q) return null;
+    const ros = loadRostovki();
+    const keys = Object.keys(ros);
+    if (!keys.length) return null;
 
-    const kn = ocrNormalize(token);
-    if (knownNormMap.has(kn)) return knownNormMap.get(kn);
+    const qk = normKey(q);
+    const qn = ocrNormalize(q);
 
-    // Fuzzy: для токенов длиной ≥ 5 допустим distance ≤ 2, для ≥ 8 — ≤ 3
-    if (kn.length < 4) return null;
-    const maxDist = kn.length >= 8 ? 3 : (kn.length >= 5 ? 2 : 1);
+    // 1. Точное совпадение
+    if (ros[qk] && ros[qk].vendorCode) {
+      return { record: ros[qk], matchType: 'точное' };
+    }
+
+    // 2. Подстрочное совпадение (query как часть vendorCode)
     let best = null;
-    let bestDist = Infinity;
-    for (const [nk, rec] of knownNormMap.entries()) {
-      if (Math.abs(nk.length - kn.length) > maxDist) continue;
-      const d = levenshtein(kn, nk);
-      if (d < bestDist) { bestDist = d; best = rec; }
-      if (d === 0) break;
+    let bestScore = Infinity;
+    for (const k of keys) {
+      const rec = ros[k];
+      if (!rec || !rec.vendorCode) continue;
+      const vk = normKey(rec.vendorCode);
+      if (vk.includes(qk)) {
+        // Чем ближе длина vendorCode к длине query — тем лучше.
+        const score = vk.length - qk.length;
+        if (score < bestScore) { bestScore = score; best = rec; }
+      }
     }
-    return (best && bestDist <= maxDist) ? best : null;
+    if (best) return { record: best, matchType: 'по части' };
+
+    // 3. Подстрочное совпадение в нормализованном виде
+    bestScore = Infinity;
+    for (const k of keys) {
+      const rec = ros[k];
+      if (!rec || !rec.vendorCode) continue;
+      const vn = ocrNormalize(rec.vendorCode);
+      if (vn && vn.includes(qn)) {
+        const score = vn.length - qn.length;
+        if (score < bestScore) { bestScore = score; best = rec; }
+      }
+    }
+    if (best) return { record: best, matchType: 'по части (норм)' };
+
+    // 4. Fuzzy по Левенштейну (на нормализованных)
+    if (qn.length >= 3) {
+      const maxDist = qn.length >= 8 ? 3 : (qn.length >= 5 ? 2 : 1);
+      bestScore = Infinity;
+      for (const k of keys) {
+        const rec = ros[k];
+        if (!rec || !rec.vendorCode) continue;
+        const vn = ocrNormalize(rec.vendorCode);
+        if (!vn) continue;
+        if (Math.abs(vn.length - qn.length) > maxDist) continue;
+        const d = levenshtein(qn, vn);
+        if (d <= maxDist && d < bestScore) { bestScore = d; best = rec; }
+      }
+      if (best) return { record: best, matchType: 'похожее' };
+    }
+
+    return null;
   }
 
-  // Парсер строк накладной.
-  // Стратегия: для каждой строки текста ищем (а) все «артикулоподобные» токены
-  // и (б) все числа. Если артикул нашёлся в базе — берём его и ближайшее число
-  // как количество коробок. Иначе берём самый длинный артикулоподобный токен
-  // и последнее число — как предположение (помечаем «не найдено в базе»).
-  function parseInvoiceText(text) {
-    const knownIdx = buildKnownArticlesIndex();
-    const knownNormMap = new Map();
-    for (const [k, v] of knownIdx.entries()) {
-      knownNormMap.set(ocrNormalize(v.vendorCode), v);
-    }
+  // --- UI «Накладная» ---
 
-    // Нормализуем разные типы тире к обычному ASCII-дефису — Tesseract на рукописи
-    // часто выдаёт en-dash/em-dash/minus вместо дефиса.
-    const normalized = String(text || '').replace(/[‐‑‒–—―−]/g, '-');
-    const lines = normalized.split(/\r?\n/);
-    const items = [];
+  function addInvRow(article, boxes) {
+    const box = $('invRows');
+    if (!box) return null;
+    const row = document.createElement('div');
+    row.className = 'inv-row';
+    row.style.cssText = 'display:grid; grid-template-columns:1fr 120px auto; gap:8px; align-items:center';
+    row.innerHTML =
+      '<input type="text" class="inv-art" placeholder="Артикул (например 519-5)" value="' + escHtml(article || '') + '" autocomplete="off" />' +
+      '<input type="number" class="inv-boxes" placeholder="Коробок" min="1" value="' + escHtml(boxes != null && boxes !== '' ? String(boxes) : '') + '" />' +
+      '<button class="btn ghost inv-del" type="button" title="Удалить строку" style="padding:8px 12px">×</button>';
+    box.appendChild(row);
+    return row;
+  }
 
-    // Паттерн полного артикула: [буква?]<цифры 2-6>-<цифры 1-4>
-    //   примеры: A519-2, B512-3, 519-2, A9288-5
-    // Группа 1 — «база» (A519, A9288, 519), группа 2 — суффикс размера.
-    const FULL_ART_RE = /([A-Za-zА-Яа-я]?\d{2,6})-(\d{1,4})/;
-    // Паттерн «продолжения»: отдельно стоящий -N (не внутри слова, не часть числа).
-    // Используем группы: (пред.символ|^) - (цифры).
-    const CONT_ART_RE = /(^|[^A-Za-zА-Яа-я0-9])-(\d{1,4})(?!\d)/;
+  function clearInvoice() {
+    $('invRows').innerHTML = '';
+    $('invResult').innerHTML = '';
+    $('invStatus').textContent = '';
+    addInvRow();
+  }
 
-    let lastBase = null; // последний увиденный префикс, например "A519"
+  function setInvStatus(msg, kind) {
+    const el = $('invStatus');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.style.color = kind === 'ok' ? 'var(--ok)' : kind === 'bad' ? 'var(--danger)' : 'var(--text-dim)';
+  }
 
-    for (const raw of lines) {
-      const line = raw.trim();
-      if (!line) continue;
-      if (line.length < 2) continue;
+  // Обработка накладной: парсим строки, резолвим артикулы через findBestRostovkaMatch,
+  // умножаем ростовку на количество коробок и добавляем позиции в supplyList.
+  function processInvoice() {
+    const rowsEls = $('invRows').querySelectorAll('.inv-row');
+    const rawItems = [];
+    let lastBase = null;
 
-      // --- Шаг 1: определяем артикул и его позицию в строке ---
-      let vendorCode = null;
-      let artPos = -1;
-      let artLen = 0;
-      let isContinuation = false;
+    rowsEls.forEach(el => {
+      const artRaw = (el.querySelector('.inv-art').value || '').trim();
+      const boxes = Math.max(0, Number(el.querySelector('.inv-boxes').value) || 0);
+      if (!artRaw || boxes <= 0) return;
 
-      const full = line.match(FULL_ART_RE);
-      if (full) {
-        vendorCode = full[0];
-        artPos = full.index;
-        artLen = full[0].length;
-        lastBase = full[1]; // запоминаем базу для следующих строк-продолжений
-      } else if (lastBase) {
-        // Нет полного артикула, но есть предыдущая база — ищем «-N»
-        const cont = line.match(CONT_ART_RE);
-        if (cont) {
-          const sizePart = cont[2];
-          vendorCode = lastBase + '-' + sizePart;
-          artPos = cont.index + (cont[1] ? cont[1].length : 0);
-          artLen = 1 + sizePart.length;
-          isContinuation = true;
-        }
-      }
+      let article = artRaw;
 
-      if (!vendorCode) continue;
-
-      // --- Шаг 2: ищем количество коробок ---
-      // Все числа в строке, исключая цифры внутри самого артикула.
-      const nums = [];
-      let m;
-      const numRe = /\b(\d{1,4})\b/g;
-      while ((m = numRe.exec(line)) !== null) {
-        // Пропускаем числа, которые являются частью артикула
-        if (m.index >= artPos && m.index < artPos + artLen) continue;
-        const n = parseInt(m[1], 10);
-        if (n >= 1 && n <= 9999) nums.push({ n, pos: m.index });
-      }
-
-      if (!nums.length) continue;
-
-      // Числа после артикула имеют приоритет.
-      // Первое число ПОСЛЕ артикула = количество коробок.
-      // (Это работает и для двухколоночных накладных: справа идёт номер строки
-      // параллельного столбца, но он будет вторым, а не первым.)
-      const afterArt = nums.filter(x => x.pos > artPos + artLen);
-      let boxes;
-      if (afterArt.length) {
-        boxes = afterArt[0].n;
+      // Сокращение «-N»: строка вида «-5» → lastBase + «-5»
+      const contMatch = artRaw.match(/^-(\d+)$/);
+      if (contMatch && lastBase) {
+        article = lastBase + '-' + contMatch[1];
       } else {
-        // Если после артикула чисел нет — берём последнее число до артикула
-        // (это может быть номер строки перед артикулом, но он же — единственный кандидат).
-        boxes = nums[nums.length - 1].n;
+        // Запоминаем базу: префикс (опц. буква + цифры), отсекая суффикс размера.
+        // Для «А519-2» база = «А519», для «А519-5 ТН-10» база тоже = «А519».
+        const baseMatch = artRaw.match(/^([A-Za-zА-Яа-я]*\d{2,6})(?:-\d+)?/);
+        if (baseMatch) lastBase = baseMatch[1];
       }
 
-      // Проверяем вменяемость значения: коробок обычно 1-999
-      if (boxes < 1 || boxes > 9999) continue;
-
-      // Пытаемся матчить артикул с базой через fuzzy
-      const matched = matchArticle(vendorCode, knownIdx, knownNormMap);
-      const finalVc = matched ? matched.vendorCode : vendorCode;
-
-      items.push({
-        rawLine: isContinuation ? (line + '  →  ' + vendorCode) : line,
-        vendorCode: finalVc,
-        boxes,
-        matched: matched || null
-      });
-    }
-
-    // Дедупликация по vendorCode: суммируем коробки если один и тот же артикул
-    // встретился несколько раз.
-    const dedup = new Map();
-    for (const it of items) {
-      const k = normKey(it.vendorCode);
-      if (dedup.has(k)) {
-        const prev = dedup.get(k);
-        prev.boxes += it.boxes;
-        prev.rawLine += ' + ' + it.rawLine;
-      } else {
-        dedup.set(k, Object.assign({}, it));
-      }
-    }
-    return Array.from(dedup.values());
-  }
-
-  function renderOcrParsed() {
-    const box = $('ocrParsed');
-    if (!ocrParsedItems.length) {
-      box.innerHTML = '<div class="info">Ничего не распознано. Проверьте текст выше и нажмите «Извлечь артикулы» ещё раз.</div>';
-      return;
-    }
-    const rows = ocrParsedItems.map((it, i) => {
-      const matchBadge = it.matched
-        ? '<span style="color:var(--ok)">✓ ' + escHtml(it.matched.source === 'rostovka' ? 'ростовка' : 'номенклатура') + '</span>'
-        : '<span style="color:var(--danger)">не найдено</span>';
-      return `
-        <tr>
-          <td><input type="checkbox" class="ocr-pick" data-idx="${i}" ${it.matched ? 'checked' : ''}/></td>
-          <td style="font-family:'JetBrains Mono', ui-monospace, monospace; font-size:11px; color:var(--text-dim)">${escHtml(it.rawLine)}</td>
-          <td><input type="text" class="ocr-vc" data-idx="${i}" value="${escHtml(it.vendorCode)}" style="padding:4px 8px; font-size:12px; width:140px"/></td>
-          <td><input type="number" min="1" class="ocr-boxes" data-idx="${i}" value="${it.boxes}" style="padding:4px 8px; font-size:12px; width:70px"/></td>
-          <td>${matchBadge}</td>
-        </tr>`;
-    }).join('');
-
-    const okCount = ocrParsedItems.filter(x => x.matched).length;
-    box.innerHTML = `
-      <h4 style="margin:0 0 6px; font-size:13px; font-weight:500; color:var(--text-dim)">Найдено позиций: ${ocrParsedItems.length} (в базе: ${okCount})</h4>
-      <div style="overflow-x:auto">
-        <table style="width:100%; border-collapse:collapse; font-size:12px">
-          <thead>
-            <tr style="background:var(--surface-2); text-align:left">
-              <th style="padding:8px 6px; width:30px"></th>
-              <th style="padding:8px 6px">Распознанная строка</th>
-              <th style="padding:8px 6px">Артикул</th>
-              <th style="padding:8px 6px" class="num">Коробок</th>
-              <th style="padding:8px 6px">Статус</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-      <div class="btn-row" style="margin-top:10px">
-        <button class="btn" id="ocrAddAll" type="button">Добавить отмеченные в поставку</button>
-      </div>
-      <p class="muted" style="margin-top:8px">Позиции «не найдено» тоже можно отметить, но для них придётся вручную указать ростовку в блоке «Создать поставку» выше.</p>
-    `;
-
-    $('ocrAddAll').addEventListener('click', addOcrItemsToSupply);
-  }
-
-  function parseOcrText() {
-    const txt = $('ocrText').value;
-    if (!txt.trim()) {
-      setOcrStatus('текст пуст — сначала распознайте фото', 'bad');
-      return;
-    }
-    ocrParsedItems = parseInvoiceText(txt);
-    renderOcrParsed();
-    setOcrStatus('разобрано строк: ' + ocrParsedItems.length, 'ok');
-  }
-
-  // Применяем правки пользователя из таблицы обратно в ocrParsedItems
-  function syncOcrEdits() {
-    const box = $('ocrParsed');
-    box.querySelectorAll('.ocr-vc').forEach(inp => {
-      const i = Number(inp.getAttribute('data-idx'));
-      if (ocrParsedItems[i]) ocrParsedItems[i].vendorCode = inp.value.trim();
+      rawItems.push({ inputText: artRaw, article: article, boxes: boxes });
     });
-    box.querySelectorAll('.ocr-boxes').forEach(inp => {
-      const i = Number(inp.getAttribute('data-idx'));
-      if (ocrParsedItems[i]) ocrParsedItems[i].boxes = Math.max(1, Number(inp.value) || 1);
-    });
-  }
 
-  // Добавляем отмеченные галочкой позиции в общий список поставки.
-  // Для каждой ищем ростовку через findSizesFor(); если не нашли — открываем
-  // форму ввода с предзаполненным артикулом, чтобы пользователь сам задал размеры.
-  function addOcrItemsToSupply() {
-    syncOcrEdits();
-    const box = $('ocrParsed');
-    const picks = [];
-    box.querySelectorAll('.ocr-pick').forEach(cb => {
-      if (cb.checked) picks.push(Number(cb.getAttribute('data-idx')));
-    });
-    if (!picks.length) {
-      setOcrStatus('не отмечено ни одной позиции', 'bad');
+    if (!rawItems.length) {
+      setInvStatus('нет заполненных строк', 'bad');
+      $('invResult').innerHTML = '';
       return;
     }
 
+    const results = [];
     let added = 0;
-    let skipped = 0;
-    const manualQueue = [];
+    let failed = 0;
 
-    for (const i of picks) {
-      const it = ocrParsedItems[i];
-      if (!it || !it.vendorCode || !it.boxes) { skipped++; continue; }
-
-      const found = findSizesFor(it.vendorCode, '');
-      if (!found || !found.sizes || !found.sizes.length || !found.sizes.some(s => s.perBox > 0)) {
-        manualQueue.push(it);
-        skipped++;
+    for (const it of rawItems) {
+      const match = findBestRostovkaMatch(it.article);
+      if (!match || !match.record || !Array.isArray(match.record.sizes) || !match.record.sizes.length) {
+        results.push({ inputText: it.inputText, article: it.article, boxes: it.boxes, matched: null, reason: 'ростовка не найдена' });
+        failed++;
         continue;
       }
 
-      // Строим supply item напрямую (без DOM), как делает addToSupply
-      const boxes = it.boxes;
+      const vc = match.record.vendorCode;
+      const nmIdRec = match.record.nmId || '';
+
+      // findSizesFor даёт единообразие с формой «Создать поставку»:
+      // сортирует размеры, подтягивает баркоды из WB-номенклатуры.
+      const found = findSizesFor(vc, nmIdRec);
+      if (!found || !found.sizes || !found.sizes.length) {
+        results.push({ inputText: it.inputText, article: it.article, boxes: it.boxes, matched: null, reason: 'ростовка пуста' });
+        failed++;
+        continue;
+      }
+
+      const sumPerBox = found.sizes.reduce((a, s) => a + (s.perBox || 0), 0);
+      if (sumPerBox <= 0) {
+        results.push({ inputText: it.inputText, article: it.article, boxes: it.boxes, matched: null, reason: 'все размеры в ростовке = 0' });
+        failed++;
+        continue;
+      }
+
+      // Если такой артикул уже в списке — суммируем коробки, иначе добавляем новый.
+      const idx = supplyList.findIndex(x => normKey(x.vendorCode) === normKey(vc));
+      const prevBoxes = idx !== -1 ? (supplyList[idx].boxes || 0) : 0;
+      const newBoxes = prevBoxes + it.boxes;
+
       const rows = found.sizes.map(s => ({
         size: s.size,
         perBox: s.perBox || 0,
-        boxes: boxes,
-        total: (s.perBox || 0) * boxes,
+        boxes: newBoxes,
+        total: (s.perBox || 0) * newBoxes,
         barcode: s.barcode || ''
       }));
-      const sumPerBox = rows.reduce((a, r) => a + r.perBox, 0);
-      if (sumPerBox <= 0) { manualQueue.push(it); skipped++; continue; }
-
-      const totalPieces = sumPerBox * boxes;
+      const totalPieces = sumPerBox * newBoxes;
       const missingBc = rows.filter(r => r.total > 0 && !r.barcode).length;
+
       const item = {
-        vendorCode: found.vendorCode || it.vendorCode,
-        nmId: found.nmId || '',
-        boxes,
-        sumPerBox,
-        totalPieces,
-        rows,
-        missingBc
+        vendorCode: vc,
+        nmId: found.nmId || nmIdRec || '',
+        boxes: newBoxes,
+        sumPerBox: sumPerBox,
+        totalPieces: totalPieces,
+        rows: rows,
+        missingBc: missingBc
       };
 
-      const idx = supplyList.findIndex(x => normKey(x.vendorCode) === normKey(item.vendorCode));
       if (idx !== -1) supplyList[idx] = item;
       else supplyList.push(item);
       added++;
+
+      results.push({
+        inputText: it.inputText,
+        article: it.article,
+        boxes: it.boxes,
+        matched: {
+          vendorCode: vc,
+          matchType: match.matchType,
+          addedPieces: sumPerBox * it.boxes
+        },
+        reason: null
+      });
     }
 
     persistSupply();
     refreshSupplyView();
 
-    // Если есть не-найденные — предзаполняем форму первым из них, чтобы
-    // пользователь мог быстро задать ростовку.
-    if (manualQueue.length) {
-      const first = manualQueue[0];
-      $('supVendorCode').value = first.vendorCode;
-      $('supBoxes').value = String(first.boxes);
-      // Попытаемся подтянуть размеры хоть из чего-то
-      try { lookupRostovka(); } catch {}
-      try { pullSizesLocal(); } catch {}
-    }
+    // Итоговая таблица
+    const rowsHtml = results.map(r => {
+      const statusCell = r.matched
+        ? '<td><span style="color:var(--ok)">&#10003; ' + escHtml(r.matched.vendorCode) + '</span> <span class="muted" style="font-size:11px">(' + escHtml(r.matched.matchType) + ')</span></td>' +
+          '<td class="num">+' + r.matched.addedPieces + '</td>'
+        : '<td><span style="color:var(--danger)">' + escHtml(r.reason || 'не найдено') + '</span></td>' +
+          '<td class="num">—</td>';
+      return '<tr>' +
+        '<td style="font-family:\'JetBrains Mono\', ui-monospace, monospace; font-size:12px">' + escHtml(r.inputText) + '</td>' +
+        '<td class="num">' + r.boxes + '</td>' +
+        statusCell +
+        '</tr>';
+    }).join('');
 
-    let msg = 'добавлено: ' + added;
-    if (skipped) msg += ', требуют ручной ростовки: ' + skipped;
-    if (manualQueue.length) {
-      msg += ' — первая позиция загружена в форму «Создать поставку» выше';
-    }
-    setOcrStatus(msg, added ? 'ok' : 'bad');
+    $('invResult').innerHTML =
+      '<div style="overflow-x:auto">' +
+        '<table style="width:100%; border-collapse:collapse; font-size:12px">' +
+          '<thead>' +
+            '<tr style="background:var(--surface-2); text-align:left">' +
+              '<th style="padding:8px 6px">Ввод</th>' +
+              '<th style="padding:8px 6px" class="num">Коробок</th>' +
+              '<th style="padding:8px 6px">Найденная ростовка</th>' +
+              '<th style="padding:8px 6px" class="num">Добавлено шт</th>' +
+            '</tr>' +
+          '</thead>' +
+          '<tbody>' + rowsHtml + '</tbody>' +
+        '</table>' +
+      '</div>';
 
-    // Прокручиваем к блоку «Создать поставку» если есть ручные позиции,
-    // иначе к списку поставки.
-    if (manualQueue.length) {
-      $('supVendorCode').scrollIntoView({ behavior: 'smooth', block: 'center' });
-      $('supVendorCode').focus();
-    } else {
-      $('supResult').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    let msg = 'позиций добавлено: ' + added;
+    if (failed) msg += ', не найдено: ' + failed;
+    setInvStatus(msg, added ? 'ok' : 'bad');
+
+    if (added) {
+      const target = $('supResult');
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }
 
-  // Инициализация OCR-блока
-  // Кнопка «Выбрать фото» — программно триггерим клик по скрытому input.
-  // Так надёжнее, чем <label for="...">: label иногда не работает если
-  // input скрыт через display:none, либо если CSS фреймворка перехватывает клик.
-  $('ocrFileBtn').addEventListener('click', () => {
-    ocrDebug('«Выбрать фото» clicked, triggering file input...');
-    const input = $('ocrFile');
-    if (!input) {
-      ocrDebugError('ocrFile input not found!');
+  // --- Инициализация блока «Накладная» ---
+  addInvRow();
+
+  $('invAddRow').addEventListener('click', () => {
+    const row = addInvRow();
+    if (row) {
+      const art = row.querySelector('.inv-art');
+      if (art) art.focus();
+    }
+  });
+
+  $('invClearAll').addEventListener('click', () => {
+    if (!confirm('Очистить все строки накладной?')) return;
+    clearInvoice();
+  });
+
+  $('invProcess').addEventListener('click', processInvoice);
+
+  // Делегирование: удаление строки
+  $('invRows').addEventListener('click', (e) => {
+    const btn = e.target.closest('.inv-del');
+    if (!btn) return;
+    const row = btn.closest('.inv-row');
+    if (row) row.remove();
+    if (!$('invRows').querySelector('.inv-row')) addInvRow();
+  });
+
+  // Enter в поле артикула → переход на поле количества
+  // Enter в поле количества → новая строка
+  $('invRows').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const tgt = e.target;
+    if (!tgt.classList || !(tgt.classList.contains('inv-art') || tgt.classList.contains('inv-boxes'))) return;
+    e.preventDefault();
+    if (tgt.classList.contains('inv-art')) {
+      const boxesInput = tgt.closest('.inv-row').querySelector('.inv-boxes');
+      if (boxesInput) boxesInput.focus();
       return;
     }
-    try {
-      input.click();
-      ocrDebug('file input .click() called successfully');
-    } catch (err) {
-      ocrDebugError('input.click() threw:', err);
+    const row = addInvRow();
+    if (row) {
+      const art = row.querySelector('.inv-art');
+      if (art) art.focus();
     }
   });
 
-  $('ocrFile').addEventListener('change', onOcrFileChange);
-  $('ocrRecognize').addEventListener('click', runOcr);
-  $('ocrClear').addEventListener('click', clearOcr);
-  $('ocrParse').addEventListener('click', parseOcrText);
-
-  // Кнопки диагностического лога
-  $('ocrDebugClear').addEventListener('click', () => {
-    const el = $('ocrDebug');
-    if (el) el.textContent = '(пусто — нажмите «Распознать», здесь появится лог)';
-  });
-  $('ocrDebugCopy').addEventListener('click', async () => {
-    const el = $('ocrDebug');
-    if (!el) return;
-    const txt = el.textContent || '';
-    try {
-      await navigator.clipboard.writeText(txt);
-      const btn = $('ocrDebugCopy');
-      const prev = btn.textContent;
-      btn.textContent = '✓ скопировано';
-      setTimeout(() => { btn.textContent = prev; }, 1500);
-    } catch (err) {
-      // Fallback: выделяем текст, чтобы пользователь мог скопировать вручную
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(range);
-      alert('Не удалось скопировать автоматически — текст выделен, нажмите Ctrl+C');
-    }
-  });
-
-  // Стартовая запись в лог — чтобы пользователь видел, что блок живой
-  ocrDebug('OCR block ready. Tesseract will be loaded on first "Распознать" click.');
-  ocrDebug('browser:', navigator.userAgent);
-  ocrDebug('origin:', window.location.origin || window.location.href);
 })();
 </script>
 </body>
