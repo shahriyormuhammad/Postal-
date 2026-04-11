@@ -2670,6 +2670,12 @@ renderProgress();
       .sup-dd-sub { color: var(--text-dim); font-size: 11px; margin-top: 2px; }
       .sup-dd-empty { padding: 10px 12px; font-size: 12px; color: var(--text-dim); }
       .sup-dd-match { color: var(--accent); font-weight: 500; }
+      .inv-dd.sup-dd-box {
+        position: absolute; left: 0; right: 0; top: 100%; margin-top: 4px;
+        background: var(--surface); border: 0.5px solid var(--border);
+        border-radius: var(--radius); max-height: 240px; overflow-y: auto;
+        z-index: 30; box-shadow: 0 4px 14px rgba(20,30,60,0.14);
+      }
     `;
     const s = document.createElement('style');
     s.textContent = css;
@@ -3753,6 +3759,111 @@ renderProgress();
     return null;
   }
 
+  // --- Автодополнение поля артикула в «Накладной» ---
+
+  // Все сохранённые ростовки, чьи vendorCode содержат query как подстроку
+  // (по normKey или по ocrNormalize). Сортирует по близости длины — более
+  // точное совпадение выше. При пустом query возвращает все ростовки в
+  // алфавитном порядке. Лимит 50.
+  function getInvCandidates(query) {
+    const ros = loadRostovki();
+    const all = Object.values(ros).filter(r => r && r.vendorCode);
+    const q = String(query || '').trim();
+    const sortAlpha = (a, b) =>
+      String(a.vendorCode).localeCompare(String(b.vendorCode), 'ru', { numeric: true });
+
+    if (!q) {
+      return all
+        .map(r => ({ vendorCode: r.vendorCode, nmId: r.nmId, sizesCount: (r.sizes || []).length, score: 0 }))
+        .sort(sortAlpha)
+        .slice(0, 50);
+    }
+
+    const qk = normKey(q);
+    const qn = ocrNormalize(q);
+    const matched = [];
+    for (const r of all) {
+      const vk = normKey(r.vendorCode);
+      const vn = ocrNormalize(r.vendorCode);
+      let score = -1;
+      if (vk.includes(qk)) score = vk.length - qk.length;
+      else if (vn.includes(qn)) score = vn.length - qn.length + 0.5;
+      if (score >= 0) {
+        matched.push({
+          vendorCode: r.vendorCode,
+          nmId: r.nmId,
+          sizesCount: (r.sizes || []).length,
+          score: score
+        });
+      }
+    }
+    matched.sort((a, b) => a.score - b.score || sortAlpha(a, b));
+    return matched.slice(0, 50);
+  }
+
+  // Состояние единственного активного дропдауна
+  let invDdItems = [];
+  let invDdActiveIdx = -1;
+  let invDdRow = null;
+
+  function hideInvDd() {
+    document.querySelectorAll('.inv-dd').forEach(el => {
+      el.style.display = 'none';
+      el.innerHTML = '';
+    });
+    invDdItems = [];
+    invDdActiveIdx = -1;
+    invDdRow = null;
+  }
+
+  function showInvDd(rowEl, query) {
+    if (!rowEl) return;
+    // Скрыть все, чтобы был только один открытый
+    document.querySelectorAll('.inv-dd').forEach(el => { el.style.display = 'none'; });
+    const dd = rowEl.querySelector('.inv-dd');
+    if (!dd) return;
+
+    invDdRow = rowEl;
+    invDdItems = getInvCandidates(query);
+    invDdActiveIdx = -1;
+
+    if (!invDdItems.length) {
+      dd.innerHTML =
+        '<div class="sup-dd-empty">Сохранённых ростовок по запросу нет. Сохраните в «Создать поставку».</div>';
+    } else {
+      dd.innerHTML = invDdItems.map(it => {
+        const sub = [];
+        if (it.nmId) sub.push('nmId ' + it.nmId);
+        if (it.sizesCount) sub.push(it.sizesCount + ' разм.');
+        return '<div class="sup-dd-item" data-vc="' + escHtml(it.vendorCode) + '">' +
+          '<div>' + highlightMatch(it.vendorCode, query) + '</div>' +
+          (sub.length ? '<div class="sup-dd-sub">' + sub.join(' · ') + '</div>' : '') +
+          '</div>';
+      }).join('');
+    }
+    dd.style.display = 'block';
+  }
+
+  function setInvDdActive(idx) {
+    if (!invDdRow) return;
+    const items = invDdRow.querySelectorAll('.inv-dd .sup-dd-item');
+    if (!items.length) return;
+    if (idx < 0) idx = items.length - 1;
+    if (idx >= items.length) idx = 0;
+    items.forEach((el, i) => el.classList.toggle('active', i === idx));
+    invDdActiveIdx = idx;
+    items[idx].scrollIntoView({ block: 'nearest' });
+  }
+
+  function selectInvDdItem(vc) {
+    if (!invDdRow) return;
+    const input = invDdRow.querySelector('.inv-art');
+    if (input) input.value = vc;
+    const boxesInput = invDdRow.querySelector('.inv-boxes');
+    hideInvDd();
+    if (boxesInput) boxesInput.focus();
+  }
+
   // --- UI «Накладная» ---
 
   function addInvRow(article, boxes) {
@@ -3760,9 +3871,12 @@ renderProgress();
     if (!box) return null;
     const row = document.createElement('div');
     row.className = 'inv-row';
-    row.style.cssText = 'display:grid; grid-template-columns:1fr 120px auto; gap:8px; align-items:center';
+    row.style.cssText = 'display:grid; grid-template-columns: minmax(0, 320px) 100px 36px; gap:8px; align-items:center; max-width:480px';
     row.innerHTML =
-      '<input type="text" class="inv-art" placeholder="Артикул (например 519-5)" value="' + escHtml(article || '') + '" autocomplete="off" />' +
+      '<div class="inv-art-wrap" style="position:relative">' +
+        '<input type="text" class="inv-art" placeholder="Артикул (например 519-5)" value="' + escHtml(article || '') + '" autocomplete="off" />' +
+        '<div class="inv-dd sup-dd-box" style="display:none"></div>' +
+      '</div>' +
       '<input type="number" class="inv-boxes" placeholder="Коробок" min="1" value="' + escHtml(boxes != null && boxes !== '' ? String(boxes) : '') + '" />' +
       '<button class="btn ghost inv-del" type="button" title="Удалить строку" style="padding:8px 12px">×</button>';
     box.appendChild(row);
@@ -3950,6 +4064,47 @@ renderProgress();
 
   $('invProcess').addEventListener('click', processInvoice);
 
+  // --- Дропдаун автодополнения на полях артикула ---
+
+  // Клик по элементу дропдауна (mousedown — раньше blur инпута)
+  $('invRows').addEventListener('mousedown', (e) => {
+    const item = e.target.closest('.inv-dd .sup-dd-item');
+    if (!item) return;
+    e.preventDefault();
+    selectInvDdItem(item.getAttribute('data-vc'));
+  });
+
+  // Печать в поле артикула — обновляем дропдаун
+  $('invRows').addEventListener('input', (e) => {
+    const tgt = e.target;
+    if (!tgt.classList || !tgt.classList.contains('inv-art')) return;
+    showInvDd(tgt.closest('.inv-row'), tgt.value);
+  });
+
+  // focus не всплывает, нужны focusin / focusout
+  $('invRows').addEventListener('focusin', (e) => {
+    const tgt = e.target;
+    if (!tgt.classList || !tgt.classList.contains('inv-art')) return;
+    showInvDd(tgt.closest('.inv-row'), tgt.value);
+  });
+
+  $('invRows').addEventListener('focusout', (e) => {
+    const tgt = e.target;
+    if (!tgt.classList || !tgt.classList.contains('inv-art')) return;
+    // Задержка, чтобы mousedown по элементу дропдауна успел сработать
+    setTimeout(() => {
+      const a = document.activeElement;
+      if (!a || !a.classList || !a.classList.contains('inv-art')) {
+        hideInvDd();
+      }
+    }, 150);
+  });
+
+  // Клик вне блока «Накладная» закрывает дропдаун
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#invRows')) hideInvDd();
+  });
+
   // Делегирование: удаление строки
   $('invRows').addEventListener('click', (e) => {
     const btn = e.target.closest('.inv-del');
@@ -3959,14 +4114,30 @@ renderProgress();
     if (!$('invRows').querySelector('.inv-row')) addInvRow();
   });
 
-  // Enter в поле артикула → переход на поле количества
-  // Enter в поле количества → новая строка
+  // Навигация по дропдауну (Up/Down/Enter/Esc) + старая логика Enter
+  // (Enter в инв-арт → прыжок в инв-боксес; Enter в инв-боксес → новая строка)
   $('invRows').addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
     const tgt = e.target;
-    if (!tgt.classList || !(tgt.classList.contains('inv-art') || tgt.classList.contains('inv-boxes'))) return;
+    if (!tgt.classList) return;
+
+    // Если открыт дропдаун на текущей строке — обрабатываем навигацию
+    if (tgt.classList.contains('inv-art') && invDdRow === tgt.closest('.inv-row') && invDdItems.length) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setInvDdActive(invDdActiveIdx + 1); return; }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setInvDdActive(invDdActiveIdx - 1); return; }
+      if (e.key === 'Escape')    { hideInvDd(); return; }
+      if (e.key === 'Enter' && invDdActiveIdx >= 0 && invDdItems[invDdActiveIdx]) {
+        e.preventDefault();
+        selectInvDdItem(invDdItems[invDdActiveIdx].vendorCode);
+        return;
+      }
+    }
+
+    // Старая логика Enter
+    if (e.key !== 'Enter') return;
+    if (!(tgt.classList.contains('inv-art') || tgt.classList.contains('inv-boxes'))) return;
     e.preventDefault();
     if (tgt.classList.contains('inv-art')) {
+      hideInvDd();
       const boxesInput = tgt.closest('.inv-row').querySelector('.inv-boxes');
       if (boxesInput) boxesInput.focus();
       return;
