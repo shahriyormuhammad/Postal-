@@ -3697,63 +3697,93 @@ renderProgress();
   //   2. подстрока: query ⊂ vendorCode (например, «519-5» ⊂ «А519-5 ТН-10»)
   //   3. подстрока в нормализованном виде (кириллица↔латиница)
   //   4. расстояние Левенштейна ≤ 3 на нормализованных
+  // Объединённый пул кандидатов: сохранённые ростовки + WB-номенклатура.
+  // Возвращает Map<normKey, {vendorCode, nmId, sizes, sizesCount, savedRostovka}>.
+  // Ростовки имеют приоритет (savedRostovka=true и переопределяют sizes с perBox).
+  function getAllKnownArticles() {
+    const ros = loadRostovki();
+    const nom = loadNomen();
+    const all = new Map();
+    // Сначала номенклатура (как фоллбэк)
+    Object.values(nom.byVc || {}).forEach(rec => {
+      if (!rec || !rec.vendorCode) return;
+      const k = normKey(rec.vendorCode);
+      all.set(k, {
+        vendorCode: rec.vendorCode,
+        nmId: rec.nmId || '',
+        sizes: rec.sizes || [],
+        sizesCount: (rec.sizes || []).length,
+        savedRostovka: false
+      });
+    });
+    // Потом ростовки — переопределяют (у них есть perBox)
+    Object.values(ros || {}).forEach(rec => {
+      if (!rec || !rec.vendorCode) return;
+      const k = normKey(rec.vendorCode);
+      const existing = all.get(k);
+      all.set(k, {
+        vendorCode: rec.vendorCode,
+        nmId: rec.nmId || (existing && existing.nmId) || '',
+        sizes: rec.sizes || [],
+        sizesCount: (rec.sizes || []).length,
+        savedRostovka: true
+      });
+    });
+    return all;
+  }
+
   function findBestRostovkaMatch(query) {
     const q = String(query || '').trim();
     if (!q) return null;
-    const ros = loadRostovki();
-    const keys = Object.keys(ros);
-    if (!keys.length) return null;
+    const pool = getAllKnownArticles();
+    if (!pool.size) return null;
 
     const qk = normKey(q);
     const qn = ocrNormalize(q);
 
     // 1. Точное совпадение
-    if (ros[qk] && ros[qk].vendorCode) {
-      return { record: ros[qk], matchType: 'точное' };
+    if (pool.has(qk)) {
+      const rec = pool.get(qk);
+      return { record: rec, matchType: rec.savedRostovka ? 'точное' : 'точное (номенклатура)' };
     }
 
     // 2. Подстрочное совпадение (query как часть vendorCode)
     let best = null;
     let bestScore = Infinity;
-    for (const k of keys) {
-      const rec = ros[k];
-      if (!rec || !rec.vendorCode) continue;
+    for (const rec of pool.values()) {
       const vk = normKey(rec.vendorCode);
       if (vk.includes(qk)) {
-        // Чем ближе длина vendorCode к длине query — тем лучше.
-        const score = vk.length - qk.length;
+        // Сохранённые ростовки приоритетнее → бонус -100 к score
+        const score = (vk.length - qk.length) - (rec.savedRostovka ? 100 : 0);
         if (score < bestScore) { bestScore = score; best = rec; }
       }
     }
-    if (best) return { record: best, matchType: 'по части' };
+    if (best) return { record: best, matchType: best.savedRostovka ? 'по части' : 'по части (номенклатура)' };
 
     // 3. Подстрочное совпадение в нормализованном виде
     bestScore = Infinity;
-    for (const k of keys) {
-      const rec = ros[k];
-      if (!rec || !rec.vendorCode) continue;
+    for (const rec of pool.values()) {
       const vn = ocrNormalize(rec.vendorCode);
       if (vn && vn.includes(qn)) {
-        const score = vn.length - qn.length;
+        const score = (vn.length - qn.length) - (rec.savedRostovka ? 100 : 0);
         if (score < bestScore) { bestScore = score; best = rec; }
       }
     }
-    if (best) return { record: best, matchType: 'по части (норм)' };
+    if (best) return { record: best, matchType: best.savedRostovka ? 'по части (норм)' : 'по части (норм, номенклатура)' };
 
     // 4. Fuzzy по Левенштейну (на нормализованных)
     if (qn.length >= 3) {
       const maxDist = qn.length >= 8 ? 3 : (qn.length >= 5 ? 2 : 1);
       bestScore = Infinity;
-      for (const k of keys) {
-        const rec = ros[k];
-        if (!rec || !rec.vendorCode) continue;
+      for (const rec of pool.values()) {
         const vn = ocrNormalize(rec.vendorCode);
         if (!vn) continue;
         if (Math.abs(vn.length - qn.length) > maxDist) continue;
         const d = levenshtein(qn, vn);
-        if (d <= maxDist && d < bestScore) { bestScore = d; best = rec; }
+        const score = d - (rec.savedRostovka ? 100 : 0);
+        if (d <= maxDist && score < bestScore) { bestScore = score; best = rec; }
       }
-      if (best) return { record: best, matchType: 'похожее' };
+      if (best) return { record: best, matchType: best.savedRostovka ? 'похожее' : 'похожее (номенклатура)' };
     }
 
     return null;
@@ -3761,21 +3791,31 @@ renderProgress();
 
   // --- Автодополнение поля артикула в «Накладной» ---
 
-  // Все сохранённые ростовки, чьи vendorCode содержат query как подстроку
-  // (по normKey или по ocrNormalize). Сортирует по близости длины — более
-  // точное совпадение выше. При пустом query возвращает все ростовки в
-  // алфавитном порядке. Лимит 50.
+  // Все известные артикулы (сохранённые ростовки + WB-номенклатура), чьи
+  // vendorCode содержат query как подстроку (по normKey или ocrNormalize).
+  // Сохранённые ростовки сортируются перед номенклатурными.
+  // При пустом query — все известные артикулы в алфавитном порядке (saved сначала).
+  // Лимит 50.
   function getInvCandidates(query) {
-    const ros = loadRostovki();
-    const all = Object.values(ros).filter(r => r && r.vendorCode);
+    const pool = getAllKnownArticles();
+    const all = Array.from(pool.values());
     const q = String(query || '').trim();
-    const sortAlpha = (a, b) =>
-      String(a.vendorCode).localeCompare(String(b.vendorCode), 'ru', { numeric: true });
+    const sortFn = (a, b) => {
+      // Сначала сохранённые
+      if (a.savedRostovka && !b.savedRostovka) return -1;
+      if (!a.savedRostovka && b.savedRostovka) return 1;
+      // Потом по score (для query)
+      if (a.score != null && b.score != null && a.score !== b.score) return a.score - b.score;
+      return String(a.vendorCode).localeCompare(String(b.vendorCode), 'ru', { numeric: true });
+    };
 
     if (!q) {
       return all
-        .map(r => ({ vendorCode: r.vendorCode, nmId: r.nmId, sizesCount: (r.sizes || []).length, score: 0 }))
-        .sort(sortAlpha)
+        .map(r => ({
+          vendorCode: r.vendorCode, nmId: r.nmId, sizesCount: r.sizesCount,
+          savedRostovka: r.savedRostovka, score: 0
+        }))
+        .sort(sortFn)
         .slice(0, 50);
     }
 
@@ -3792,13 +3832,24 @@ renderProgress();
         matched.push({
           vendorCode: r.vendorCode,
           nmId: r.nmId,
-          sizesCount: (r.sizes || []).length,
+          sizesCount: r.sizesCount,
+          savedRostovka: r.savedRostovka,
           score: score
         });
       }
     }
-    matched.sort((a, b) => a.score - b.score || sortAlpha(a, b));
+    matched.sort(sortFn);
     return matched.slice(0, 50);
+  }
+
+  // Сводка состояния базы — для empty state дропдауна
+  function getInvBaseSummary() {
+    const ros = loadRostovki();
+    const nom = loadNomen();
+    return {
+      rostovki: Object.keys(ros || {}).length,
+      nomenclature: Object.keys((nom && nom.byVc) || {}).length
+    };
   }
 
   // Состояние единственного активного дропдауна
@@ -3828,16 +3879,26 @@ renderProgress();
     invDdActiveIdx = -1;
 
     if (!invDdItems.length) {
-      dd.innerHTML =
-        '<div class="sup-dd-empty">Сохранённых ростовок по запросу нет. Сохраните в «Создать поставку».</div>';
+      const summary = getInvBaseSummary();
+      let msg;
+      if (summary.rostovki === 0 && summary.nomenclature === 0) {
+        msg = 'База пуста. Загрузите номенклатуру (вкладка «Настройка» → CSV или WB API) или сохраните ростовку в «Создать поставку».';
+      } else {
+        msg = 'Не нашёл «' + escHtml(query || '') + '» среди ' + summary.rostovki +
+          ' сохранённых ростовок и ' + summary.nomenclature +
+          ' артикулов в номенклатуре. Проверьте написание.';
+      }
+      dd.innerHTML = '<div class="sup-dd-empty">' + msg + '</div>';
     } else {
       dd.innerHTML = invDdItems.map(it => {
         const sub = [];
+        if (it.savedRostovka) sub.push('<span style="color:var(--ok)">✓ ростовка</span>');
+        else sub.push('<span style="color:var(--text-dim)">нет ростовки</span>');
         if (it.nmId) sub.push('nmId ' + it.nmId);
         if (it.sizesCount) sub.push(it.sizesCount + ' разм.');
         return '<div class="sup-dd-item" data-vc="' + escHtml(it.vendorCode) + '">' +
           '<div>' + highlightMatch(it.vendorCode, query) + '</div>' +
-          (sub.length ? '<div class="sup-dd-sub">' + sub.join(' · ') + '</div>' : '') +
+          '<div class="sup-dd-sub">' + sub.join(' · ') + '</div>' +
           '</div>';
       }).join('');
     }
@@ -3957,7 +4018,13 @@ renderProgress();
 
       const sumPerBox = found.sizes.reduce((a, s) => a + (s.perBox || 0), 0);
       if (sumPerBox <= 0) {
-        results.push({ inputText: it.inputText, article: it.article, boxes: it.boxes, matched: null, reason: 'все размеры в ростовке = 0' });
+        // Артикул найден, но perBox=0 → нет сохранённой ростовки, и шаблон размеров не подошёл.
+        // Подсказываем пользователю что делать.
+        results.push({
+          inputText: it.inputText, article: it.article, boxes: it.boxes,
+          matched: null,
+          reason: 'найден «' + vc + '», но ростовка не сохранена — добавьте в «Создать поставку»'
+        });
         failed++;
         continue;
       }
