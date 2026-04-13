@@ -3687,6 +3687,7 @@ renderProgress();
   /* ---- ШК коробов ---- */
   var shkAoa = null;
 
+  window.refreshShkState = refreshShkState;
   function refreshShkState() {
     var totalBoxes = supplyList.reduce(function(a, x) { return a + x.boxes; }, 0);
     var hasMissing = supplyList.some(function(x) { return x.missingBc > 0; });
