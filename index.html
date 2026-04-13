@@ -3728,13 +3728,13 @@ renderProgress();
       if (shkIdx >= boxCount) break;
     }
 
-    var aoa = [['Баркод товара', 'Кол-во товара', 'ШК короба', 'Срок годности']];
+    var aoa = [['Баркод товара', 'Кол-во товаров', 'ШК короба', 'Срок годности']];
     var totalItems = 0;
     var totalPcs = 0;
     for (var i = 0; i < boxes.length; i++) {
       var bx = boxes[i];
       for (var j = 0; j < bx.items.length; j++) {
-        aoa.push([bx.items[j].barcode, bx.items[j].qty, bx.shkCode, '']);
+        aoa.push([bx.items[j].barcode, bx.items[j].qty, bx.shkCode]);
         totalItems++;
         totalPcs += bx.items[j].qty;
       }
