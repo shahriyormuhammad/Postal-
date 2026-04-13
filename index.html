@@ -661,11 +661,41 @@ C-340,4,132,12,46.21"></textarea>
   </div>
   </div><!-- /step-invoice -->
 
-  <!-- Подпанель 3: ШК коробов (заглушка) -->
+  <!-- Подпанель 3: ШК коробов -->
   <div class="sub-panel" id="step-barcodes">
   <div class="card">
-    <h3 style="margin-top:0">ШК коробов</h3>
-    <p class="muted">В разработке</p>
+    <h3 style="margin-top:0">Привязка ШК коробов</h3>
+    <p class="muted" style="margin-bottom:14px">Скопируйте первый ШК короба из кабинета WB (раздел Поставки &rarr; ваша поставка &rarr; список коробов). Система сгенерирует последовательные ШК и привяжет содержимое каждой коробки по данным из накладной.</p>
+
+    <!-- Предупреждение: данных нет -->
+    <div id="shkNoData" style="display:none; margin-bottom:14px">
+      <p style="color:var(--danger); margin:0 0 8px">Список поставки пуст. Сначала добавьте товары через &laquo;План поставки&raquo; или обработайте накладную.</p>
+      <button class="btn ghost" id="shkGoInvoice" type="button">Перейти к накладной</button>
+    </div>
+
+    <!-- Форма ввода -->
+    <div id="shkForm" style="display:none">
+      <div style="display:grid; grid-template-columns:1fr 140px; gap:8px; max-width:420px">
+        <div>
+          <label>Первый ШК короба</label>
+          <input id="shkFirstCode" placeholder="WB_1572120887" autocomplete="off"/>
+        </div>
+        <div>
+          <label>Количество коробов</label>
+          <input id="shkBoxCount" type="number" min="1"/>
+        </div>
+      </div>
+      <div class="btn-row" style="margin-top:14px">
+        <button class="btn" id="shkGenerate" type="button">Сгенерировать</button>
+      </div>
+    </div>
+
+    <!-- Результат -->
+    <div id="shkResultWrap" style="display:none; margin-top:20px">
+      <div id="shkMetrics" style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:14px"></div>
+      <div id="shkPreview" style="max-height:400px; overflow:auto; margin-bottom:14px"></div>
+      <button class="btn" id="shkDownload" type="button">Скачать XLSX</button>
+    </div>
   </div>
   </div><!-- /step-barcodes -->
 
@@ -1091,6 +1121,7 @@ document.querySelectorAll('.tab').forEach(btn => {
     document.querySelectorAll('#panel-plan .sub-panel').forEach(function(p) { p.classList.remove('active'); });
     document.getElementById('step-' + btn.dataset.step).classList.add('active');
     updateStepIcons();
+    if (btn.dataset.step === 'barcodes' && typeof refreshShkState === 'function') refreshShkState();
   });
 })();
 
@@ -3653,6 +3684,111 @@ renderProgress();
     XLSX.writeFile(wb, `postavka_${dateStamp()}.xlsx`);
   }
 
+  /* ---- ШК коробов ---- */
+  var shkAoa = null;
+
+  function refreshShkState() {
+    var totalBoxes = supplyList.reduce(function(a, x) { return a + x.boxes; }, 0);
+    var hasMissing = supplyList.some(function(x) { return x.missingBc > 0; });
+    var hasData = supplyList.length > 0 && totalBoxes > 0 && !hasMissing;
+    $('shkNoData').style.display = hasData ? 'none' : '';
+    $('shkForm').style.display = hasData ? '' : 'none';
+    $('shkResultWrap').style.display = 'none';
+    $('shkBoxCount').value = totalBoxes;
+  }
+
+  function generateShk() {
+    var firstCode = ($('shkFirstCode').value || '').trim();
+    var codeMatch = firstCode.match(/^WB_(\d+)$/);
+    if (!codeMatch) {
+      alert('Формат ШК короба: WB_ и цифры. Пример: WB_1572120887');
+      return;
+    }
+    var startNum = BigInt(codeMatch[1]);
+    var boxCount = Number($('shkBoxCount').value) || 0;
+    if (boxCount < 1) { alert('Количество коробов должно быть \u2265 1'); return; }
+
+    var boxes = [];
+    var shkIdx = 0;
+    for (var a = 0; a < supplyList.length; a++) {
+      var art = supplyList[a];
+      var content = [];
+      for (var r = 0; r < art.rows.length; r++) {
+        if (art.rows[r].perBox > 0 && art.rows[r].barcode) {
+          content.push({ barcode: art.rows[r].barcode, qty: art.rows[r].perBox });
+        }
+      }
+      for (var b = 0; b < art.boxes; b++) {
+        if (shkIdx >= boxCount) break;
+        var code = 'WB_' + String(startNum + BigInt(shkIdx));
+        boxes.push({ shkCode: code, items: content.slice() });
+        shkIdx++;
+      }
+      if (shkIdx >= boxCount) break;
+    }
+
+    var aoa = [['Баркод товара', 'Кол-во товара', 'ШК короба', 'Срок годности']];
+    var totalItems = 0;
+    var totalPcs = 0;
+    for (var i = 0; i < boxes.length; i++) {
+      var bx = boxes[i];
+      for (var j = 0; j < bx.items.length; j++) {
+        aoa.push([bx.items[j].barcode, bx.items[j].qty, bx.shkCode, '']);
+        totalItems++;
+        totalPcs += bx.items[j].qty;
+      }
+    }
+    shkAoa = aoa;
+
+    $('shkMetrics').innerHTML =
+      '<div class="card" style="flex:1; min-width:100px; padding:12px; text-align:center">' +
+        '<div style="font-size:22px; font-weight:600">' + boxes.length + '</div>' +
+        '<div class="muted" style="font-size:12px">коробов</div></div>' +
+      '<div class="card" style="flex:1; min-width:100px; padding:12px; text-align:center">' +
+        '<div style="font-size:22px; font-weight:600">' + totalItems + '</div>' +
+        '<div class="muted" style="font-size:12px">строк</div></div>' +
+      '<div class="card" style="flex:1; min-width:100px; padding:12px; text-align:center">' +
+        '<div style="font-size:22px; font-weight:600">' + totalPcs + '</div>' +
+        '<div class="muted" style="font-size:12px">штук</div></div>';
+
+    var previewLimit = Math.min(aoa.length, 51);
+    var html = '<table class="data-table"><thead><tr>';
+    for (var h = 0; h < aoa[0].length; h++) html += '<th>' + aoa[0][h] + '</th>';
+    html += '</tr></thead><tbody>';
+    for (var pr = 1; pr < previewLimit; pr++) {
+      html += '<tr>';
+      for (var c = 0; c < aoa[pr].length; c++) html += '<td>' + escHtml(String(aoa[pr][c])) + '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    if (aoa.length > 51) html += '<p class="muted">Показаны первые 50 строк из ' + (aoa.length - 1) + '</p>';
+    $('shkPreview').innerHTML = html;
+    $('shkResultWrap').style.display = '';
+
+    // Отмечаем шаг 3 как завершённый
+    var stepBtn3 = document.querySelector('[data-step="barcodes"]');
+    if (stepBtn3) { stepBtn3.dataset.completed = 'true'; updateStepIcons(); }
+  }
+
+  function downloadShkXlsx() {
+    if (!shkAoa || shkAoa.length < 2) { alert('Сначала сгенерируйте таблицу.'); return; }
+    if (typeof XLSX === 'undefined') {
+      alert('Библиотека XLSX не загрузилась, проверьте интернет-соединение.');
+      return;
+    }
+    var ws = XLSX.utils.aoa_to_sheet(shkAoa);
+    for (var i = 1; i < shkAoa.length; i++) {
+      var cellA = XLSX.utils.encode_cell({ r: i, c: 0 });
+      if (ws[cellA]) { ws[cellA].t = 's'; ws[cellA].v = String(ws[cellA].v); }
+      var cellC = XLSX.utils.encode_cell({ r: i, c: 2 });
+      if (ws[cellC]) { ws[cellC].t = 's'; ws[cellC].v = String(ws[cellC].v); }
+    }
+    ws['!cols'] = [{ wch: 18 }, { wch: 14 }, { wch: 18 }, { wch: 14 }];
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'ШК коробов');
+    XLSX.writeFile(wb, 'postal_shk_korobov_' + dateStamp() + '.xlsx');
+  }
+
   // Инициализация
   renderSizeRows([]);
   refreshSupplyView();
@@ -3664,6 +3800,12 @@ renderProgress();
   $('supClear').addEventListener('click', clearSupplyList);
   $('supExportCsv').addEventListener('click', exportCsv);
   $('supExportXlsx').addEventListener('click', exportXlsx);
+  $('shkGenerate').addEventListener('click', generateShk);
+  $('shkDownload').addEventListener('click', downloadShkXlsx);
+  $('shkGoInvoice').addEventListener('click', function() {
+    var btn = document.querySelector('[data-step="invoice"]');
+    if (btn) btn.click();
+  });
   $('supVendorCode').addEventListener('blur', () => {
     // Задержка, чтобы mousedown на элементе dropdown успел сработать
     setTimeout(hideVcDropdown, 150);
