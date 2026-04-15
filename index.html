@@ -2474,7 +2474,7 @@ function computeTaskKpi(task) {
   }
 
   const hasArticle = !!a && orders > 0;
-  return { oldKtr, newKtr, oldKrp, newKrp, savingsPerWeek: Math.max(0, savingsPerWeek), inZone, hasArticle };
+  return { oldKtr, newKtr, oldKrp, newKrp, oldDl, newDl, savingsPerWeek: Math.max(0, savingsPerWeek), inZone, hasArticle };
 }
 
 function renderRedistTasks(result) {
@@ -2491,25 +2491,29 @@ function renderRedistTasks(result) {
       .map(([sz, q]) => `<strong style="font-weight:500">${sz}</strong>:${q}`)
       .join(' · ');
     const kpi = computeTaskKpi(t);
-    const improved = kpi.inZone && kpi.newKtr < kpi.oldKtr;
+    const ktrImproved = kpi.inZone && kpi.newKtr < kpi.oldKtr;
+    const dlImproved  = kpi.inZone && kpi.newDl > kpi.oldDl + 0.01;
+    const dlSubline   = dlImproved && !ktrImproved
+      ? `<div style="font-size:10px;color:var(--text-dim);margin-top:2px">ДЛ ${Math.round(kpi.oldDl)}% → ${Math.round(kpi.newDl)}%</div>`
+      : '';
 
     // ИЛ: текущий → прогнозный (или одно число если без изменений)
     let ilCell;
     if (!kpi.hasArticle) {
       ilCell = '<span class="mono muted">—</span>';
-    } else if (improved) {
+    } else if (ktrImproved) {
       ilCell = `<span class="mono">${kpi.oldKtr.toFixed(2)}</span>`
         + `<span class="kpi-arrow kpi-good"> → </span>`
         + `<span class="mono kpi-good">${kpi.newKtr.toFixed(2)}</span>`;
     } else {
-      ilCell = `<span class="mono muted">${kpi.oldKtr.toFixed(2)}</span>`;
+      ilCell = `<span class="mono muted">${kpi.oldKtr.toFixed(2)}</span>${dlSubline}`;
     }
 
     // КРП: текущий → прогнозный (или одно число если без изменений)
     let krpCell;
     if (!kpi.hasArticle) {
       krpCell = '<span class="mono muted">—</span>';
-    } else if (improved) {
+    } else if (ktrImproved) {
       krpCell = `<span class="mono">${kpi.oldKrp.toFixed(2)}%</span>`
         + `<span class="kpi-arrow kpi-good"> → </span>`
         + `<span class="mono kpi-good">${kpi.newKrp.toFixed(2)}%</span>`;
