@@ -147,6 +147,86 @@
   .sub-panel { display: none; animation: fadein 0.2s ease; }
   .sub-panel.active { display: block; }
 
+  /* KPI-блок «Перераспределение» (glassmorphism) */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin: 0 0 20px;
+  }
+  @media (max-width: 980px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 520px) { .kpi-grid { grid-template-columns: 1fr; } }
+
+  .kpi-card {
+    position: relative;
+    padding: 16px 18px;
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.55);
+    border: 0.5px solid var(--border);
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+    box-shadow: 0 1px 2px rgba(20, 25, 45, 0.03), 0 4px 14px rgba(20, 25, 45, 0.04);
+    overflow: hidden;
+  }
+  .kpi-card::before {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 60%);
+    pointer-events: none;
+  }
+  .kpi-card > * { position: relative; }
+
+  .kpi-accent {
+    background: linear-gradient(135deg, rgba(79, 109, 250, 0.14), rgba(79, 109, 250, 0.05));
+    border-color: var(--accent-border);
+  }
+  .kpi-accent .kpi-value { color: var(--accent); }
+
+  .kpi-label {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--text-dim); font-weight: 500;
+    margin-bottom: 8px;
+  }
+  .icon-sm { width: 14px; height: 14px; flex-shrink: 0; opacity: 0.75; }
+
+  .kpi-tip {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 14px; height: 14px; border-radius: 50%;
+    font-size: 10px; color: var(--text-dim); cursor: help;
+    background: var(--surface-2); margin-left: 2px;
+  }
+  .kpi-tip:hover { color: var(--accent); }
+
+  .kpi-value {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 26px; font-weight: 500; letter-spacing: -0.02em;
+    color: var(--text); line-height: 1.1;
+    transition: color 0.3s ease;
+  }
+  .kpi-sub {
+    font-size: 11px; margin-top: 4px; color: var(--text-dim);
+  }
+  .kpi-delta-up { color: var(--ok); }
+  .kpi-delta-down { color: var(--danger); }
+
+  .kpi-tabs {
+    display: inline-flex; gap: 2px; margin-bottom: 6px;
+    background: var(--surface-2); border-radius: 6px; padding: 2px;
+  }
+  .kpi-tab {
+    background: none; border: none; cursor: pointer;
+    padding: 3px 8px; border-radius: 4px;
+    font: inherit; font-size: 11px; color: var(--text-dim);
+    transition: background 0.15s, color 0.15s;
+  }
+  .kpi-tab:hover { color: var(--text); }
+  .kpi-tab.active { background: var(--surface); color: var(--accent); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+
+  .kpi-note {
+    font-size: 10px; color: var(--text-dim); margin-top: 8px;
+    padding: 4px 8px; background: rgba(255,255,255,0.5);
+    border-radius: 4px; line-height: 1.35;
+  }
+
   h2 {
     font-size: 22px; font-weight: 500; margin-bottom: 6px; letter-spacing: -0.01em; color: var(--text);
   }
@@ -727,6 +807,55 @@ C-340,4,132,12,46.21"></textarea>
   <h2>Перераспределение</h2>
   <p class="lead">Ежедневная планёрка. Загружаешь остатки и заказы за прошлую неделю — получаешь готовые заявки: какой товар, каких размеров, с какого склада и на какой везти. Прогноз = прошлая неделя × (1 + рост%).</p>
 
+  <!-- KPI-блок -->
+  <div class="kpi-grid" id="redistKpi">
+    <!-- Карточка 1: текущий ИЛ -->
+    <div class="kpi-card">
+      <div class="kpi-label">
+        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+        Текущий ИЛ
+      </div>
+      <div class="kpi-value" id="kpiIlCurrent">—</div>
+      <div class="kpi-sub muted" id="kpiDate">данных нет</div>
+    </div>
+
+    <!-- Карточка 2: текущий ИРП -->
+    <div class="kpi-card">
+      <div class="kpi-label">
+        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        Текущий ИРП
+      </div>
+      <div class="kpi-value" id="kpiIrpCurrent">—</div>
+      <div class="kpi-sub muted">цель &lt; 13%</div>
+    </div>
+
+    <!-- Карточка 3: прогноз после перевозки -->
+    <div class="kpi-card">
+      <div class="kpi-label">
+        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        Прогноз после перевозки
+        <span class="kpi-tip" title="Прогноз — линейная аппроксимация. Реальный пересчёт WB раз в неделю (ночь вс→пн), фактический график будет ступенчатым.">ⓘ</span>
+      </div>
+      <div class="kpi-tabs" role="tablist">
+        <button class="kpi-tab" data-horizon="1" type="button">через 1 нед</button>
+        <button class="kpi-tab active" data-horizon="13" type="button">через 13 нед</button>
+      </div>
+      <div class="kpi-value" id="kpiIlForecast">—</div>
+      <div class="kpi-sub" id="kpiForecastDelta">ИРП: —</div>
+    </div>
+
+    <!-- Карточка 4 (акцент): экономия -->
+    <div class="kpi-card kpi-accent">
+      <div class="kpi-label">
+        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Экономия
+      </div>
+      <div class="kpi-value" id="kpiSavings">—</div>
+      <div class="kpi-sub">₽/нед при выполнении заявок</div>
+      <div class="kpi-note">Оценочный расчёт. Точные значения — после подключения тарифов WB.</div>
+    </div>
+  </div>
+
   <div class="card">
     <h3 style="margin-top:0">Параметры</h3>
     <div class="input-row three">
@@ -966,6 +1095,234 @@ function ktrForDl(dl) {
 }
 
 /* =========================================================
+   ПЕРЕРАСПРЕДЕЛЕНИЕ — KPI-БЛОК (Этап A)
+   Все прикидочные константы собраны здесь, чтобы позже
+   заменить их на реальные данные из WB API.
+   ========================================================= */
+const REDIST_CONSTANTS = {
+  AVG_VOLUME_L: 5,            // средний объём товара в литрах (MVP-прикидка)
+  AVG_TARIFF_RUB_PER_L: 20,   // средний тариф ₽/литр (MVP-прикидка)
+  FALLBACK_PRICE_RUB: 2500,   // fallback цена ₽, если в orders нет priceU
+  REALIZATION_RATE: 0.85,     // коэф. реализации: не всё перевезённое станет локальными продажами
+  WH_COEF: 1,                 // коэф. склада (MVP-прикидка, реально зависит от склада)
+  WB_ROLLING_WINDOW: 13       // скользящее окно WB в неделях
+  // TODO (Этап B): учесть объединённые зоны WB — ЮФО+СКФО, СФО+ДФО.
+  //   В текущем computeRedistribution / state.articles эти округа идут
+  //   отдельно (см. CITIES_DATA ~строки 2563–2568). Для корректного
+  //   расчёта «локальных» заказов после перевозки нужно мапить регионы
+  //   в объединённые зоны и считать по ним.
+};
+
+/* ---- Расчёт текущих KPI кабинета ---- */
+function computeCabinetKpi(articles) {
+  if (!articles || !articles.length) return { il: null, irp: null, totalOrders: 0 };
+  let sumOrders = 0, sumIlW = 0, sumIrpW = 0;
+  for (const a of articles) {
+    const orders = a.orders || 0;
+    const dl = (typeof a.dl === 'number') ? a.dl : 0;
+    sumOrders += orders;
+    sumIlW += orders * ktrForDl(dl);
+    sumIrpW += orders * krpForDl(dl);
+  }
+  if (sumOrders === 0) return { il: null, irp: null, totalOrders: 0 };
+  return { il: sumIlW / sumOrders, irp: sumIrpW / sumOrders, totalOrders: sumOrders };
+}
+
+/* ---- Прогнозный KPI при принятии заявок (полный эффект, 13 нед) ---- */
+function computeForecastKpi(articles, tasks) {
+  if (!articles || !articles.length) return { il: null, irp: null };
+  if (!tasks || !tasks.length) {
+    const cur = computeCabinetKpi(articles);
+    return { il: cur.il, irp: cur.irp };
+  }
+
+  // Агрегируем перевозимые штуки по nmId
+  const moved = {};
+  for (const task of tasks) {
+    moved[task.nmId] = (moved[task.nmId] || 0) + (task.qty || 0);
+  }
+
+  let sumOrders = 0, sumIlW = 0, sumIrpW = 0;
+  for (const a of articles) {
+    const orders = a.orders || 0;
+    const dl = (typeof a.dl === 'number') ? a.dl : 0;
+    const movedQty = moved[a.nmId] || 0;
+    // REALIZATION_RATE — не всё перевезённое станет локальными продажами (Q2 в плане)
+    const effectiveMoved = movedQty * REDIST_CONSTANTS.REALIZATION_RATE;
+    const oldLocal = orders * dl / 100;
+    let newLocal = oldLocal + effectiveMoved;
+    if (newLocal > orders) newLocal = orders;
+    const newDl = orders > 0 ? (newLocal / orders) * 100 : 0;
+    sumOrders += orders;
+    sumIlW += orders * ktrForDl(newDl);
+    sumIrpW += orders * krpForDl(newDl);
+  }
+  if (sumOrders === 0) return { il: null, irp: null };
+  return { il: sumIlW / sumOrders, irp: sumIrpW / sumOrders };
+}
+
+/* ---- Смешиваем текущий и прогнозный для горизонта k недель (1..13) ----
+   Линейная аппроксимация скользящего окна WB.
+   Реально WB пересчитывает раз в неделю (ночь вс→пн), поэтому
+   фактический график будет ступенчатым. */
+function blendKpiForHorizon(current, forecast, horizonWeeks) {
+  if (current.il == null || forecast.il == null) return { il: null, irp: null };
+  const k = Math.max(0, Math.min(REDIST_CONSTANTS.WB_ROLLING_WINDOW, horizonWeeks));
+  const w = k / REDIST_CONSTANTS.WB_ROLLING_WINDOW;
+  return {
+    il: current.il * (1 - w) + forecast.il * w,
+    irp: current.irp * (1 - w) + forecast.irp * w
+  };
+}
+
+/* ---- Средняя цена артикула из state.orderRows (если есть priceU) ---- */
+function getArticlePrice(nmId) {
+  const rows = (window.state && window.state.orderRows) || [];
+  let sum = 0, n = 0;
+  for (const r of rows) {
+    if (r.nmId !== nmId) continue;
+    const p = r.priceU || r.price || r.finishedPrice || 0;
+    if (p > 0) { sum += p; n++; }
+  }
+  if (n > 0) return sum / n;
+  return REDIST_CONSTANTS.FALLBACK_PRICE_RUB;
+}
+
+/* ---- Экономия ₽/нед при принятии всех заявок (MVP-прикидка) ---- */
+function computeRedistSavings(articles, tasks) {
+  if (!articles || !articles.length || !tasks || !tasks.length) return 0;
+  const C = REDIST_CONSTANTS;
+
+  const byNm = {};
+  for (const a of articles) byNm[a.nmId] = a;
+
+  const moved = {};
+  for (const task of tasks) {
+    moved[task.nmId] = (moved[task.nmId] || 0) + (task.qty || 0);
+  }
+
+  let total = 0;
+  for (const nm in moved) {
+    const a = byNm[nm]; if (!a) continue;
+    const orders = a.orders || 0;
+    const oldDl = a.dl || 0;
+    const effectiveMoved = moved[nm] * C.REALIZATION_RATE;
+    let newLocal = orders * oldDl / 100 + effectiveMoved;
+    if (newLocal > orders) newLocal = orders;
+    const newDl = orders > 0 ? (newLocal / orders) * 100 : 0;
+
+    const dKtr = ktrForDl(oldDl) - ktrForDl(newDl);
+    const dKrp = krpForDl(oldDl) - krpForDl(newDl);
+    const ordersPerWeek = orders / 4;
+    const price = getArticlePrice(+nm);
+
+    total += ordersPerWeek * C.AVG_VOLUME_L * C.AVG_TARIFF_RUB_PER_L * C.WH_COEF * dKtr;
+    total += ordersPerWeek * price * dKrp / 100;
+  }
+  return Math.max(0, total);
+}
+
+/* ---- Форматирование числа для KPI-карточки ---- */
+function formatKpiNumber(v, opts) {
+  if (v == null || !isFinite(v)) return '—';
+  opts = opts || {};
+  const digits = opts.digits != null ? opts.digits : 2;
+  const suffix = opts.suffix || '';
+  if (opts.money) {
+    // 12 345 ₽  (без дробной части)
+    const r = Math.round(v);
+    return r.toLocaleString('ru-RU').replace(/,/g, ' ') + ' ₽';
+  }
+  if (opts.percent) {
+    return v.toFixed(digits) + '%';
+  }
+  return v.toFixed(digits) + suffix;
+}
+
+/* ---- Плавная анимация счётчика ---- */
+function animateKpi(el, to, opts) {
+  if (!el) return;
+  opts = opts || {};
+  const raw = el.getAttribute('data-kpi-raw');
+  const from = raw != null && !isNaN(parseFloat(raw)) ? parseFloat(raw) : 0;
+  if (to == null || !isFinite(to)) {
+    el.textContent = '—';
+    el.setAttribute('data-kpi-raw', '');
+    return;
+  }
+  el.setAttribute('data-kpi-raw', String(to));
+  const dur = 360;
+  const start = performance.now();
+  function step(now) {
+    const t = Math.min(1, (now - start) / dur);
+    const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+    const cur = from + (to - from) * eased;
+    el.textContent = formatKpiNumber(cur, opts);
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+/* ---- Главный рендер KPI-блока ---- */
+let redistKpiHorizon = 13;
+
+function renderRedistKpi() {
+  const wrap = document.getElementById('redistKpi');
+  if (!wrap) return;
+  const articles = (typeof state !== 'undefined' && state && state.articles) ? state.articles : [];
+  const last = window.__lastRedist;
+  const tasks = (last && last.tasks) ? last.tasks : [];
+
+  const cur = computeCabinetKpi(articles);
+  const fullForecast = computeForecastKpi(articles, tasks);
+  const horizonForecast = blendKpiForHorizon(cur, fullForecast, redistKpiHorizon);
+  const savings = computeRedistSavings(articles, tasks);
+
+  // Текущие ИЛ/ИРП
+  animateKpi(document.getElementById('kpiIlCurrent'), cur.il, { digits: 2 });
+  animateKpi(document.getElementById('kpiIrpCurrent'), cur.irp, { digits: 2, percent: true });
+
+  // Дата среза (приблизительно — «сегодня»)
+  const today = new Date();
+  const dateStr = today.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' });
+  const dateEl = document.getElementById('kpiDate');
+  if (dateEl) dateEl.textContent = articles.length ? ('срез на ' + dateStr) : 'данных нет';
+
+  // Прогноз
+  const fEl = document.getElementById('kpiIlForecast');
+  const fDelta = document.getElementById('kpiForecastDelta');
+  animateKpi(fEl, horizonForecast.il, { digits: 2 });
+  if (fDelta) {
+    if (horizonForecast.irp == null) {
+      fDelta.textContent = 'ИРП: —';
+      fDelta.classList.remove('kpi-delta-up', 'kpi-delta-down');
+    } else {
+      const deltaIl = (cur.il != null && horizonForecast.il != null) ? (cur.il - horizonForecast.il) : 0;
+      const sign = deltaIl > 0.001 ? '−' : (deltaIl < -0.001 ? '+' : '±');
+      const arrow = deltaIl > 0.001 ? '↓' : (deltaIl < -0.001 ? '↑' : '=');
+      fDelta.textContent = 'ИРП: ' + formatKpiNumber(horizonForecast.irp, { digits: 2, percent: true })
+        + '   ' + arrow + ' ' + sign + Math.abs(deltaIl).toFixed(2) + ' ИЛ';
+      fDelta.classList.toggle('kpi-delta-up', deltaIl > 0.001);
+      fDelta.classList.toggle('kpi-delta-down', deltaIl < -0.001);
+    }
+  }
+
+  // Экономия
+  animateKpi(document.getElementById('kpiSavings'), savings, { money: true });
+}
+
+/* ---- Переключатель горизонта (1 / 13 нед) ---- */
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest && e.target.closest('.kpi-tab');
+  if (!btn) return;
+  const h = Number(btn.dataset.horizon);
+  if (!h) return;
+  redistKpiHorizon = h;
+  document.querySelectorAll('.kpi-tab').forEach(b => b.classList.toggle('active', b === btn));
+  renderRedistKpi();
+});
+
+/* =========================================================
    КАРТА ГОРОДОВ → БЫСТРЫЕ СКЛАДЫ WB
    Источник: @POSTAVLENOru_BOT (самые быстрые склады)
    Формат: city -> [[warehouse, hours], ... до 6 приоритетов]
@@ -1075,6 +1432,10 @@ document.querySelectorAll('.tab').forEach(btn => {
     document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
     // Автоматически прокрутить вкладку к центру, если она обрезана
     btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    // Перерисовать KPI при входе на вкладку «Перераспределение»
+    if (btn.dataset.tab === 'redist' && typeof renderRedistKpi === 'function') {
+      renderRedistKpi();
+    }
   });
 });
 
@@ -1894,6 +2255,7 @@ document.getElementById('btnRedist').addEventListener('click', () => {
   };
   const result = computeRedistribution(stock, orders, opts);
   renderRedistTasks(result);
+  if (typeof renderRedistKpi === 'function') renderRedistKpi();
 });
 
 document.getElementById('btnRedistExport').addEventListener('click', () => {
