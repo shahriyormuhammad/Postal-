@@ -1277,6 +1277,11 @@ const REGION_TO_OKRUG = {
   "Амурская": "ДФО", "Сахалинская": "ДФО", "Магаданская": "ДФО",
   "Камчатский": "ДФО", "Чукотский": "ДФО",
   "Саха": "ДФО", "Якутия": "ДФО", "Забайкальский": "ДФО", "Бурятия": "ДФО",
+  // Прямые имена городов (чтобы пользователь мог ввести «Магадан», «Мурманск» и т.п.)
+  "Магадан": "ДФО", "Владивосток": "ДФО", "Хабаровск": "ДФО", "Якутск": "ДФО",
+  "Петропавловск-Камчатский": "ДФО", "Анадырь": "ДФО",
+  "Мурманск": "СЗФО", "Архангельск": "СЗФО", "Нарьян-Мар": "СЗФО", "Сыктывкар": "СЗФО",
+  "Симферополь": "ЮФО", "Севастополь": "ЮФО",
 };
 
 function getOkrugForRegion(region) {
@@ -1319,6 +1324,18 @@ function computeCabinetKpi(articles) {
   return { il: sumIlW / sumOrders, irp: sumIrpW / sumOrders, totalOrders: sumOrders };
 }
 
+/* Проверка: лежит ли склад-получатель в объединённой тарифной зоне региона.
+   Если ДА — перевозка увеличивает «локальную» долю заказов → ДЛ растёт.
+   Если НЕТ — cross-zone доставка, ДЛ не растёт (моделируем как 0). */
+function isTaskInZone(task) {
+  if (!task || !task.toWh || !task.region) return false;
+  const whInfo = WAREHOUSE_TARIFFS[task.toWh];
+  const custOkrug = getOkrugForRegion(task.region);
+  if (!whInfo || !custOkrug) return false;
+  const zoneOkrugs = OKRUG_ZONES[custOkrug] || [custOkrug];
+  return zoneOkrugs.indexOf(whInfo.federal) !== -1;
+}
+
 /* ---- Прогнозный KPI при принятии заявок (полный эффект, 13 нед) ---- */
 function computeForecastKpi(articles, tasks) {
   if (!articles || !articles.length) return { il: null, irp: null };
@@ -1327,9 +1344,11 @@ function computeForecastKpi(articles, tasks) {
     return { il: cur.il, irp: cur.irp };
   }
 
-  // Агрегируем перевозимые штуки по nmId
+  // Агрегируем по nmId только штуки, переезжающие в ЗОНУ клиента.
+  // Cross-zone перевозки не увеличивают ДЛ в регионе покупателя.
   const moved = {};
   for (const task of tasks) {
+    if (!isTaskInZone(task)) continue;
     moved[task.nmId] = (moved[task.nmId] || 0) + (task.qty || 0);
   }
 
@@ -1338,7 +1357,7 @@ function computeForecastKpi(articles, tasks) {
     const orders = a.orders || 0;
     const dl = (typeof a.dl === 'number') ? a.dl : 0;
     const movedQty = moved[a.nmId] || 0;
-    // REALIZATION_RATE — не всё перевезённое станет локальными продажами (Q2 в плане)
+    // REALIZATION_RATE — не всё перевезённое станет локальными продажами
     const effectiveMoved = movedQty * REDIST_CONSTANTS.REALIZATION_RATE;
     const oldLocal = orders * dl / 100;
     let newLocal = oldLocal + effectiveMoved;
@@ -1388,7 +1407,9 @@ function computeRedistSavings(articles, tasks) {
   for (const a of articles) byNm[a.nmId] = a;
 
   const moved = {};
+  // Учитываем только in-zone перевозки — cross-zone не улучшают ДЛ
   for (const task of tasks) {
+    if (!isTaskInZone(task)) continue;
     moved[task.nmId] = (moved[task.nmId] || 0) + (task.qty || 0);
   }
 
@@ -1602,6 +1623,11 @@ const DEMO_ARTICLES = [
   { nmId: 88475623, orders: 264, dl: 55, regions: { 'Центральный':110, 'Приволжский':70, 'Уральский':50, 'Южный':34 } },
   { nmId: 91827364, orders: 221, dl: 67, regions: { 'Центральный':130, 'Северо-Западный':60, 'Приволжский':31 } },
   { nmId: 10293847, orders: 187, dl: 38, regions: { 'Южный':80, 'Центральный':55, 'Приволжский':32, 'Северо-Западный':20 } },
+  // Артикул для демонстрации разницы стратегий 🚀 vs 💰:
+  // все заказы в Магадане (ДФО), ДЛ=8% — низкая, big room for improvement.
+  // 🚀 отправит в Коледино (ЦФО, cross-zone) — ДЛ не вырастет.
+  // 💰 отправит в Барнаул СЦ 2 (СФО, merged ДФО-зона) — ДЛ вырастет.
+  { nmId: 85296375, orders: 200, dl: 8,  regions: { 'Магадан':165, 'Владивосток':35 } },
 ];
 
 /* =========================================================
@@ -2331,8 +2357,7 @@ function computeRedistribution(stockRows, orderRows, opts) {
         else if (pct < 0) strategyNote = '💰 +' + Math.abs(pct) + '% к среднему тарифу';
         else strategyNote = '💰 средний тариф зоны';
       } else {
-        const rank = getSpeedRankForRegion(f.region, f.targetWh.name);
-        strategyNote = rank ? ('🚀 #' + rank + ' по скорости') : '🚀 быстрейший склад';
+        strategyNote = '🚀 быстрейший склад округа';
       }
 
       tasks.push({
@@ -2397,7 +2422,7 @@ function renderRedistTasks(result) {
         <td>${priorityBadge(t.gap)}</td>
         <td>${photoCell(t.nmId)}</td>
         <td>${t.fromWh}<div class="muted" style="font-size:11px">остаток ${t.fromStock + t.qty}</div></td>
-        <td>${t.toWh}<div class="muted" style="font-size:11px">${t.region}</div>${t.strategyNote ? `<div class="muted" style="font-size:10px;margin-top:2px;opacity:0.85">${t.strategyNote}</div>` : ''}</td>
+        <td>${t.toWh}<div class="muted" style="font-size:11px">${t.region}</div>${t.strategyNote ? `<div style="font-size:12px;margin-top:3px;color:var(--text-dim);font-weight:500">${t.strategyNote}</div>` : ''}</td>
         <td class="num">${t.lastWeek} → <strong style="color:var(--accent);font-weight:500">${t.forecast}</strong></td>
         <td class="num">${t.currentAtTarget}</td>
         <td class="num"><strong style="font-weight:500">${t.qty}</strong></td>
@@ -2480,7 +2505,11 @@ const DEMO_STOCK_CSV = `nmId,warehouse,size,qty
 47586920,Коледино,44,42
 47586920,Коледино,45,30
 47586920,Новосибирск,43,4
-47586920,Хабаровск,44,2`;
+47586920,Хабаровск,44,2
+85296375,Новосибирск,42,50
+85296375,Новосибирск,43,50
+85296375,Коледино,42,3
+85296375,Коледино,43,2`;
 
 const DEMO_ORDERS_CSV = `nmId,region,orders
 18475621,Приволжский,15
@@ -2492,7 +2521,9 @@ const DEMO_ORDERS_CSV = `nmId,region,orders
 29384756,Приволжский,6
 47586920,Сибирский,18
 47586920,Дальневосточный,14
-47586920,Уральский,7`;
+47586920,Уральский,7
+85296375,Магадан,80
+85296375,Владивосток,18`;
 
 document.getElementById('btnRedistDemo').addEventListener('click', () => {
   document.getElementById('stockCsv').value = DEMO_STOCK_CSV;
