@@ -1463,7 +1463,7 @@ function computeRedistSavings(articles, tasks) {
 
     const dKtr = ktrForDl(oldDl) - ktrForDl(newDl);
     const dKrp = krpForDl(oldDl) - krpForDl(newDl);
-    const ordersPerWeek = orders / 4;
+    const ordersPerWeek = orders / C.WB_ROLLING_WINDOW;
     const price = getArticlePrice(+nm);
 
     total += ordersPerWeek * C.AVG_VOLUME_L * C.AVG_TARIFF_RUB_PER_L * C.WH_COEF * dKtr;
@@ -2444,7 +2444,7 @@ function priorityBadge(gap) {
 /* ---- Per-row KPI: ИЛ/КРП/Экономия для одной задачи ---- */
 function computeTaskKpi(task) {
   const arts = (typeof state !== 'undefined' && state.articles) ? state.articles : [];
-  const a = arts.find(x => x.nmId === task.nmId);
+  const a = arts.find(x => x.nmId === task.nmId || x.nmId === Number(task.nmId));
   const orders = a ? (a.orders || 0) : 0;
   const oldDl = a ? (a.dl || 0) : 0;
   const inZone = isTaskInZone(task);
@@ -2467,13 +2467,14 @@ function computeTaskKpi(task) {
     const C = REDIST_CONSTANTS;
     const dKtr = oldKtr - newKtr;
     const dKrp = oldKrp - newKrp;
-    const ordersPerWeek = orders / 4;
+    const ordersPerWeek = orders / C.WB_ROLLING_WINDOW;
     const price = getArticlePrice(task.nmId);
     savingsPerWeek += ordersPerWeek * C.AVG_VOLUME_L * C.AVG_TARIFF_RUB_PER_L * C.WH_COEF * dKtr;
     savingsPerWeek += ordersPerWeek * price * dKrp / 100;
   }
 
-  return { oldKtr, newKtr, oldKrp, newKrp, savingsPerWeek: Math.max(0, savingsPerWeek), inZone };
+  const hasArticle = !!a && orders > 0;
+  return { oldKtr, newKtr, oldKrp, newKrp, savingsPerWeek: Math.max(0, savingsPerWeek), inZone, hasArticle };
 }
 
 function renderRedistTasks(result) {
@@ -2491,17 +2492,30 @@ function renderRedistTasks(result) {
       .join(' · ');
     const kpi = computeTaskKpi(t);
     const improved = kpi.inZone && kpi.newKtr < kpi.oldKtr;
-    const arrowCls = improved ? ' kpi-good' : '';
 
-    // ИЛ: текущий → прогнозный
-    const ilCell = `<span class="mono">${kpi.oldKtr.toFixed(2)}</span>`
-      + `<span class="kpi-arrow${arrowCls}"> → </span>`
-      + `<span class="mono${arrowCls}">${kpi.newKtr.toFixed(2)}</span>`;
+    // ИЛ: текущий → прогнозный (или одно число если без изменений)
+    let ilCell;
+    if (!kpi.hasArticle) {
+      ilCell = '<span class="mono muted">—</span>';
+    } else if (improved) {
+      ilCell = `<span class="mono">${kpi.oldKtr.toFixed(2)}</span>`
+        + `<span class="kpi-arrow kpi-good"> → </span>`
+        + `<span class="mono kpi-good">${kpi.newKtr.toFixed(2)}</span>`;
+    } else {
+      ilCell = `<span class="mono muted">${kpi.oldKtr.toFixed(2)}</span>`;
+    }
 
-    // КРП: текущий → прогнозный
-    const krpCell = `<span class="mono">${kpi.oldKrp.toFixed(2)}%</span>`
-      + `<span class="kpi-arrow${arrowCls}"> → </span>`
-      + `<span class="mono${arrowCls}">${kpi.newKrp.toFixed(2)}%</span>`;
+    // КРП: текущий → прогнозный (или одно число если без изменений)
+    let krpCell;
+    if (!kpi.hasArticle) {
+      krpCell = '<span class="mono muted">—</span>';
+    } else if (improved) {
+      krpCell = `<span class="mono">${kpi.oldKrp.toFixed(2)}%</span>`
+        + `<span class="kpi-arrow kpi-good"> → </span>`
+        + `<span class="mono kpi-good">${kpi.newKrp.toFixed(2)}%</span>`;
+    } else {
+      krpCell = `<span class="mono muted">${kpi.oldKrp.toFixed(2)}%</span>`;
+    }
 
     // Экономия
     const savCell = kpi.savingsPerWeek > 0
@@ -2636,6 +2650,8 @@ const DEMO_ORDERS_CSV = `nmId,region,orders
 document.getElementById('btnRedistDemo').addEventListener('click', () => {
   document.getElementById('stockCsv').value = DEMO_STOCK_CSV;
   document.getElementById('ordersCsv').value = DEMO_ORDERS_CSV;
+  // Загружаем DEMO_ARTICLES в state, чтобы computeTaskKpi видел dl/orders
+  state.articles = DEMO_ARTICLES.map(a => ({ ...a }));
 });
 
 /* ---- Стратегия распределения (🚀 speed / 💰 cost) ---- */
@@ -2668,6 +2684,30 @@ function runRedistBuild() {
     alert('Ошибка разбора CSV: ' + e.message);
     return;
   }
+
+  // Гарантируем, что state.articles содержит все артикулы из CSV.
+  // Если синхронизация кабинета ещё не выполнялась — создаём записи с dl=0.
+  const orderTotals = {};
+  for (const o of orders) {
+    if (!o.nmId) continue;
+    orderTotals[o.nmId] = (orderTotals[o.nmId] || 0) + (Number(o.orders) || 0);
+  }
+  const existingNms = new Set((state.articles || []).map(a => a.nmId));
+  for (const nm in orderTotals) {
+    if (!existingNms.has(Number(nm))) {
+      if (!state.articles) state.articles = [];
+      state.articles.push({ nmId: Number(nm), orders: 0, dl: 0, regions: {} });
+    }
+  }
+  // Обновляем orders из CSV (кол-во за неделю × WB_ROLLING_WINDOW)
+  // если в state.articles нет orders (или 0)
+  for (const a of state.articles) {
+    const weeklyFromCsv = orderTotals[a.nmId];
+    if (weeklyFromCsv && (!a.orders || a.orders === 0)) {
+      a.orders = weeklyFromCsv * REDIST_CONSTANTS.WB_ROLLING_WINDOW;
+    }
+  }
+
   const opts = {
     growthPct: Number(document.getElementById('growthPct').value) || 0,
     minGap: Number(document.getElementById('minGap').value) || 0,
