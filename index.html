@@ -234,6 +234,50 @@
     border-radius: 4px; line-height: 1.35;
   }
 
+  /* Переключатель стратегии */
+  .redist-card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap;
+  }
+  .strategy-switch {
+    display: inline-flex; gap: 2px;
+    background: var(--surface-2); border-radius: 10px; padding: 3px;
+    border: 0.5px solid var(--border);
+  }
+  .strategy-opt {
+    background: none; border: none; cursor: pointer;
+    padding: 6px 14px; border-radius: 8px;
+    font: inherit; font-size: 13px; font-weight: 500;
+    color: var(--text-dim);
+    transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+    white-space: nowrap;
+  }
+  .strategy-opt:hover { color: var(--text); }
+  .strategy-opt.active {
+    background: var(--surface); color: var(--accent);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+
+  /* Skeleton-loader на время пересчёта */
+  .redist-reloading {
+    position: relative;
+    opacity: 0.45;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+  }
+  .redist-reloading::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(79,109,250,0.10), transparent);
+    background-size: 200% 100%;
+    animation: redistShimmer 1.2s linear infinite;
+    pointer-events: none;
+    border-radius: var(--radius-lg);
+  }
+  @keyframes redistShimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
   h2 {
     font-size: 22px; font-weight: 500; margin-bottom: 6px; letter-spacing: -0.01em; color: var(--text);
   }
@@ -864,8 +908,20 @@ C-340,4,132,12,46.21"></textarea>
   </div>
 
   <div class="card">
-    <h3 style="margin-top:0">Параметры</h3>
-    <div class="input-row three">
+    <div class="redist-card-head">
+      <h3 style="margin:0">Параметры</h3>
+      <div class="strategy-switch" role="tablist" aria-label="Стратегия распределения">
+        <button class="strategy-opt active" data-strategy="speed" type="button"
+          title="Топовые склады по скорости доставки в регион. Дороже приёмка, но быстрее в ПВЗ → буст в поиске WB">
+          🚀 Скорость
+        </button>
+        <button class="strategy-opt" data-strategy="cost" type="button"
+          title="Самые дешёвые склады в зоне доставки. Экономия на тарифах приёмки и логистики">
+          💰 Стоимость
+        </button>
+      </div>
+    </div>
+    <div class="input-row three" style="margin-top:14px">
       <div>
         <label>Рост к прошлой неделе, %</label>
         <input type="number" id="growthPct" value="15" min="0" max="100" />
@@ -1106,6 +1162,134 @@ function ktrForDl(dl) {
    Все прикидочные константы собраны здесь, чтобы позже
    заменить их на реальные данные из WB API.
    ========================================================= */
+/* Тарифные коэффициенты складов WB.
+   MVP-данные на 2026-04. Источник: открытая тарифная сетка WB (средние прикидки).
+   Имена складов ДОЛЖНЫ совпадать с тем, что в CITIES_DATA (иначе lookup не сработает).
+   tariffCoef < 1 = дешевле среднего, > 1 = дороже. Нейтральное значение — 1.0.
+   TODO: заменить на реальные данные из API /api/v1/tariffs/box при подключении тарифов. */
+const WAREHOUSE_TARIFFS = {
+  // ── ЦФО ──
+  "Коледино":                { federal: "ЦФО",  tariffCoef: 1.0  },
+  "Подольск":                { federal: "ЦФО",  tariffCoef: 1.05 },
+  "Электросталь":            { federal: "ЦФО",  tariffCoef: 1.1  },
+  "Белые Столбы":            { federal: "ЦФО",  tariffCoef: 1.0  },
+  "Белая Дача":              { federal: "ЦФО",  tariffCoef: 1.1  },
+  "Истра":                   { federal: "ЦФО",  tariffCoef: 1.0  },
+  "Склад Чашниково":         { federal: "ЦФО",  tariffCoef: 1.0  }, // TODO: уточнить
+  "Алексин (Тула)":          { federal: "ЦФО",  tariffCoef: 0.95 },
+  "Рязань (Тюшевское)":      { federal: "ЦФО",  tariffCoef: 0.95 },
+  "Владимир":                { federal: "ЦФО",  tariffCoef: 0.95 },
+  "Котовск":                 { federal: "ЦФО",  tariffCoef: 0.85 },
+  "Воронеж":                 { federal: "ЦФО",  tariffCoef: 0.85 },
+
+  // ── СЗФО ──
+  "Склад СПБ Шушары Московское": { federal: "СЗФО", tariffCoef: 1.0  },
+  "Обухово":                 { federal: "СЗФО", tariffCoef: 1.0  },
+  "Калининград":             { federal: "СЗФО", tariffCoef: 1.15 }, // эксклав, логистика дорогая
+
+  // ── ЮФО ──
+  "Краснодар":               { federal: "ЮФО",  tariffCoef: 0.75 },
+  "Волгоград":               { federal: "ЮФО",  tariffCoef: 0.70 },
+
+  // ── СКФО ──
+  "Невинномысск":            { federal: "СКФО", tariffCoef: 0.60 },
+
+  // ── ПФО ──
+  "Казань":                  { federal: "ПФО",  tariffCoef: 0.85 },
+  "Новосемейкино":           { federal: "ПФО",  tariffCoef: 0.65 },
+  "Сарапул":                 { federal: "ПФО",  tariffCoef: 0.80 },
+  "Пенза":                   { federal: "ПФО",  tariffCoef: 0.85 },
+
+  // ── УФО ──
+  "Перспективный":           { federal: "УФО",  tariffCoef: 0.70 }, // Екб, крупный
+
+  // ── СФО ──
+  "Новосибирск":             { federal: "СФО",  tariffCoef: 0.80 },
+  "Барнаул СЦ 2":            { federal: "СФО",  tariffCoef: 0.75 },
+
+  // ── ДФО ──
+  "Владивосток":             { federal: "ДФО",  tariffCoef: 1.30 }, // логистика дорогая
+
+  // ── СНГ (для справки, WB использует как аналог) ──
+  "Алматы Атакент":          { federal: "KZ",   tariffCoef: 0.80 },
+  "Склад Астана Карагандинское шоссе": { federal: "KZ", tariffCoef: 0.80 },
+  "Актобе":                  { federal: "KZ",   tariffCoef: 0.75 },
+  "СК Ереван":               { federal: "AM",   tariffCoef: 0.90 },
+};
+
+/* Объединённые тарифные зоны WB.
+   ЮФО + СКФО (Юг) и СФО + ДФО (Восток) тарифицируются как одна зона,
+   поэтому склад из объединённого округа считается «локальным» для региона. */
+const OKRUG_ZONES = {
+  "ЦФО":  ["ЦФО"],
+  "СЗФО": ["СЗФО"],
+  "ЮФО":  ["ЮФО", "СКФО"],
+  "СКФО": ["ЮФО", "СКФО"],
+  "ПФО":  ["ПФО"],
+  "УФО":  ["УФО"],
+  "СФО":  ["СФО", "ДФО"],
+  "ДФО":  ["СФО", "ДФО"],
+  "KZ":   ["KZ"],
+  "AM":   ["AM"],
+};
+
+/* Мэппинг регионов/областей/краёв → федеральный округ (коды). */
+const REGION_TO_OKRUG = {
+  // ЦФО
+  "Центральный": "ЦФО", "Москва": "ЦФО", "Московская": "ЦФО",
+  "Белгородская": "ЦФО", "Брянская": "ЦФО", "Владимирская": "ЦФО",
+  "Воронежская": "ЦФО", "Ивановская": "ЦФО", "Калужская": "ЦФО",
+  "Костромская": "ЦФО", "Курская": "ЦФО", "Липецкая": "ЦФО",
+  "Орловская": "ЦФО", "Рязанская": "ЦФО", "Смоленская": "ЦФО",
+  "Тамбовская": "ЦФО", "Тверская": "ЦФО", "Тульская": "ЦФО",
+  "Ярославская": "ЦФО",
+  // СЗФО
+  "Северо-Западный": "СЗФО", "Санкт-Петербург": "СЗФО", "Ленинградская": "СЗФО",
+  "Архангельская": "СЗФО", "Вологодская": "СЗФО", "Калининградская": "СЗФО",
+  "Мурманская": "СЗФО", "Новгородская": "СЗФО", "Псковская": "СЗФО",
+  "Карелия": "СЗФО", "Коми": "СЗФО", "Ненецкий": "СЗФО",
+  // ЮФО
+  "Южный": "ЮФО", "Краснодарский": "ЮФО", "Ростовская": "ЮФО",
+  "Астраханская": "ЮФО", "Волгоградская": "ЮФО", "Адыгея": "ЮФО",
+  "Калмыкия": "ЮФО", "Крым": "ЮФО", "Севастополь": "ЮФО",
+  // СКФО
+  "Северо-Кавказский": "СКФО", "Ставропольский": "СКФО",
+  "Дагестан": "СКФО", "Чечня": "СКФО", "Ингушетия": "СКФО",
+  "Кабардино-Балкарская": "СКФО", "Карачаево-Черкесская": "СКФО",
+  "Северная Осетия": "СКФО",
+  // ПФО
+  "Приволжский": "ПФО", "Татарстан": "ПФО", "Башкортостан": "ПФО",
+  "Нижегородская": "ПФО", "Самарская": "ПФО", "Саратовская": "ПФО",
+  "Пермский": "ПФО", "Оренбургская": "ПФО", "Кировская": "ПФО",
+  "Пензенская": "ПФО", "Ульяновская": "ПФО", "Удмуртская": "ПФО",
+  "Чувашская": "ПФО", "Марий Эл": "ПФО", "Мордовия": "ПФО",
+  // УФО
+  "Уральский": "УФО", "Свердловская": "УФО", "Челябинская": "УФО",
+  "Тюменская": "УФО", "Курганская": "УФО",
+  "Ханты-Мансийский": "УФО", "Ямало-Ненецкий": "УФО",
+  // СФО
+  "Сибирский": "СФО", "Новосибирская": "СФО", "Красноярский": "СФО",
+  "Омская": "СФО", "Томская": "СФО", "Кемеровская": "СФО",
+  "Иркутская": "СФО", "Алтайский": "СФО", "Алтай": "СФО",
+  "Хакасия": "СФО", "Тыва": "СФО",
+  // ДФО
+  "Дальневосточный": "ДФО", "Приморский": "ДФО", "Хабаровский": "ДФО",
+  "Амурская": "ДФО", "Сахалинская": "ДФО", "Магаданская": "ДФО",
+  "Камчатский": "ДФО", "Чукотский": "ДФО",
+  "Саха": "ДФО", "Якутия": "ДФО", "Забайкальский": "ДФО", "Бурятия": "ДФО",
+};
+
+function getOkrugForRegion(region) {
+  if (!region) return null;
+  const s = String(region).trim();
+  if (REGION_TO_OKRUG[s]) return REGION_TO_OKRUG[s];
+  // Поиск по подстроке (например: "Московская область" → "Московская")
+  for (const key of Object.keys(REGION_TO_OKRUG)) {
+    if (s.includes(key)) return REGION_TO_OKRUG[key];
+  }
+  return null;
+}
+
 const REDIST_CONSTANTS = {
   AVG_VOLUME_L: 5,            // средний объём товара в литрах (MVP-прикидка)
   AVG_TARIFF_RUB_PER_L: 20,   // средний тариф ₽/литр (MVP-прикидка)
@@ -1979,8 +2163,66 @@ function parseCsv(text, cols) {
   }).filter(r => r.nmId || r[cols[0]]);
 }
 
-function findWarehouseForRegion(region) {
+/* Вернуть tariffCoef склада (или 1.0 если неизвестен) */
+function getTariffCoef(whName) {
+  const t = WAREHOUSE_TARIFFS[whName];
+  return t ? t.tariffCoef : 1.0;
+}
+
+/* Средний tariffCoef по объединённой зоне округа */
+function getZoneAvgTariffCoef(okrug) {
+  const zoneOkrugs = OKRUG_ZONES[okrug] || [okrug];
+  const coefs = Object.values(WAREHOUSE_TARIFFS)
+    .filter(w => zoneOkrugs.indexOf(w.federal) !== -1)
+    .map(w => w.tariffCoef);
+  if (!coefs.length) return 1.0;
+  return coefs.reduce((a, b) => a + b, 0) / coefs.length;
+}
+
+/* Самый дешёвый склад в объединённой зоне округа получателя */
+function getCheapestWarehouseForRegion(region) {
+  const okrug = getOkrugForRegion(region);
+  if (!okrug) return null;
+  const zoneOkrugs = OKRUG_ZONES[okrug] || [okrug];
+
+  const candidates = Object.keys(WAREHOUSE_TARIFFS)
+    .filter(name => zoneOkrugs.indexOf(WAREHOUSE_TARIFFS[name].federal) !== -1)
+    .sort((a, b) => WAREHOUSE_TARIFFS[a].tariffCoef - WAREHOUSE_TARIFFS[b].tariffCoef);
+
+  if (!candidates.length) return null;
+  const winner = candidates[0];
+  const city = resolveCity(region);
+  const avgCoef = getZoneAvgTariffCoef(okrug);
+  const pct = Math.round((1 - WAREHOUSE_TARIFFS[winner].tariffCoef / avgCoef) * 100);
+  return {
+    name: winner,
+    hours: null,
+    city: city || region,
+    tariffCoef: WAREHOUSE_TARIFFS[winner].tariffCoef,
+    zoneAvgCoef: avgCoef,
+    cheaperPct: pct,
+    okrug,
+  };
+}
+
+/* Позиция склада в списке CITIES_DATA (для ранга 🚀 топ-N по скорости) */
+function getSpeedRankForRegion(region, whName) {
+  const city = resolveCity(region);
+  if (!city) return null;
+  const list = CITIES_DATA[city] || [];
+  for (let i = 0; i < list.length; i++) {
+    if (list[i][0] === whName) return i + 1;
+  }
+  return null;
+}
+
+function findWarehouseForRegion(region, strategy) {
   if (!region) return null;
+  if (strategy === 'cost') {
+    const cheap = getCheapestWarehouseForRegion(region);
+    if (cheap) return cheap;
+    // fallback на скорость, если в зоне нет складов с тарифами
+  }
   const fast = getFastestWarehouse(region);
   if (!fast) return null;
   return { name: fast.name, hours: fast.hours, city: fast.city };
@@ -1990,6 +2232,7 @@ function computeRedistribution(stockRows, orderRows, opts) {
   const growth = 1 + (opts.growthPct / 100);
   const minGap = opts.minGap;
   const bufferPct = opts.bufferPct / 100;
+  const strategy = opts.strategy || 'speed';
 
   // Группируем остатки: ключ nmId|warehouse → {total, sizes:{}}
   const stockMap = new Map();
@@ -2011,7 +2254,7 @@ function computeRedistribution(stockRows, orderRows, opts) {
     if (!o.nmId || !o.region) continue;
     const lastWeek = Number(o.orders) || 0;
     const forecast = Math.ceil(lastWeek * growth);
-    const targetWh = findWarehouseForRegion(o.region);
+    const targetWh = findWarehouseForRegion(o.region, strategy);
     forecasts.push({ nmId: o.nmId, region: o.region, lastWeek, forecast, targetWh });
   }
 
@@ -2078,6 +2321,20 @@ function computeRedistribution(stockRows, orderRows, opts) {
         }
       }
 
+      // Метка стратегии для колонки «Куда»
+      let strategyNote = '';
+      if (strategy === 'cost') {
+        const coef = getTariffCoef(f.targetWh.name);
+        const avg = (f.targetWh.zoneAvgCoef) || getZoneAvgTariffCoef(getOkrugForRegion(f.region));
+        const pct = Math.round((1 - coef / avg) * 100);
+        if (pct > 0) strategyNote = '💰 −' + pct + '% к среднему тарифу';
+        else if (pct < 0) strategyNote = '💰 +' + Math.abs(pct) + '% к среднему тарифу';
+        else strategyNote = '💰 средний тариф зоны';
+      } else {
+        const rank = getSpeedRankForRegion(f.region, f.targetWh.name);
+        strategyNote = rank ? ('🚀 #' + rank + ' по скорости') : '🚀 быстрейший склад';
+      }
+
       tasks.push({
         nmId: f.nmId,
         fromWh: donor.warehouse,
@@ -2090,6 +2347,8 @@ function computeRedistribution(stockRows, orderRows, opts) {
         gap,
         qty: moved,
         sizes: sizesToMove,
+        strategy,
+        strategyNote,
       });
 
       // Уменьшаем остаток донора, чтобы не использовать повторно
@@ -2138,7 +2397,7 @@ function renderRedistTasks(result) {
         <td>${priorityBadge(t.gap)}</td>
         <td>${photoCell(t.nmId)}</td>
         <td>${t.fromWh}<div class="muted" style="font-size:11px">остаток ${t.fromStock + t.qty}</div></td>
-        <td>${t.toWh}<div class="muted" style="font-size:11px">${t.region}</div></td>
+        <td>${t.toWh}<div class="muted" style="font-size:11px">${t.region}</div>${t.strategyNote ? `<div class="muted" style="font-size:10px;margin-top:2px;opacity:0.85">${t.strategyNote}</div>` : ''}</td>
         <td class="num">${t.lastWeek} → <strong style="color:var(--accent);font-weight:500">${t.forecast}</strong></td>
         <td class="num">${t.currentAtTarget}</td>
         <td class="num"><strong style="font-weight:500">${t.qty}</strong></td>
@@ -2240,7 +2499,22 @@ document.getElementById('btnRedistDemo').addEventListener('click', () => {
   document.getElementById('ordersCsv').value = DEMO_ORDERS_CSV;
 });
 
-document.getElementById('btnRedist').addEventListener('click', () => {
+/* ---- Стратегия распределения (🚀 speed / 💰 cost) ---- */
+const REDIST_STRATEGY_KEY = 'postal_redist_strategy';
+let redistStrategy = (function() {
+  try {
+    const v = localStorage.getItem(REDIST_STRATEGY_KEY);
+    return (v === 'cost' || v === 'speed') ? v : 'speed';
+  } catch { return 'speed'; }
+})();
+
+function applyStrategyUi() {
+  document.querySelectorAll('.strategy-opt').forEach(b => {
+    b.classList.toggle('active', b.dataset.strategy === redistStrategy);
+  });
+}
+
+function runRedistBuild() {
   const stockText = document.getElementById('stockCsv').value;
   const ordersText = document.getElementById('ordersCsv').value;
   if (!stockText.trim() || !ordersText.trim()) {
@@ -2259,11 +2533,42 @@ document.getElementById('btnRedist').addEventListener('click', () => {
     growthPct: Number(document.getElementById('growthPct').value) || 0,
     minGap: Number(document.getElementById('minGap').value) || 0,
     bufferPct: Number(document.getElementById('sourceBuffer').value) || 0,
+    strategy: redistStrategy,
   };
   const result = computeRedistribution(stock, orders, opts);
   renderRedistTasks(result);
   if (typeof renderRedistKpi === 'function') renderRedistKpi();
+}
+
+document.getElementById('btnRedist').addEventListener('click', runRedistBuild);
+
+/* Пересчёт при смене стратегии со skeleton-задержкой */
+document.querySelectorAll('.strategy-opt').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const next = btn.dataset.strategy;
+    if (next === redistStrategy) return;
+    redistStrategy = next;
+    try { localStorage.setItem(REDIST_STRATEGY_KEY, next); } catch {}
+    applyStrategyUi();
+
+    // Если заявки уже были построены — пересчитываем с skeleton-анимацией
+    if (window.__lastRedist && window.__lastRedist.tasks && window.__lastRedist.tasks.length) {
+      const resultEl = document.getElementById('redistResult');
+      const kpiEl = document.getElementById('redistKpi');
+      if (resultEl) resultEl.classList.add('redist-reloading');
+      if (kpiEl) kpiEl.classList.add('redist-reloading');
+      const delay = 600 + Math.random() * 200; // 600–800 мс
+      setTimeout(() => {
+        runRedistBuild();
+        if (resultEl) resultEl.classList.remove('redist-reloading');
+        if (kpiEl) kpiEl.classList.remove('redist-reloading');
+      }, delay);
+    }
+  });
 });
+
+// Применить сохранённую стратегию сразу при загрузке
+applyStrategyUi();
 
 document.getElementById('btnRedistExport').addEventListener('click', () => {
   const result = window.__lastRedist;
