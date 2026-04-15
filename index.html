@@ -278,6 +278,44 @@
     100% { background-position: -200% 0; }
   }
 
+  /* Таблица заявок перераспределения */
+  .redist-scroll { overflow-x: auto; position: relative; }
+  .redist-table { border-collapse: collapse; min-width: 900px; }
+  .redist-table th, .redist-table td { padding: 6px 8px; }
+  .redist-table thead th { position: sticky; top: 0; z-index: 3; background: var(--surface); }
+
+  /* Sticky: первые 3 колонки (☐, #, Приор.) */
+  .col-sticky { position: sticky; z-index: 2; background: var(--surface); }
+  .col-s0 { left: 0; min-width: 30px; width: 30px; }
+  .col-s1 { left: 30px; min-width: 28px; width: 28px; }
+  .col-s2 { left: 58px; }
+  .redist-table thead .col-sticky { z-index: 4; }
+  .redist-table tbody tr:hover .col-sticky { background: var(--surface-2); }
+
+  /* Моноширинный для KPI/экономии */
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; }
+  .kpi-good { color: var(--ok); font-weight: 600; }
+  .kpi-arrow { color: var(--text-dim); }
+
+  /* Кнопки-иконки «Действия» */
+  .act-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; padding: 0; border: none;
+    background: none; cursor: pointer; border-radius: 4px;
+    color: var(--text-dim); transition: color 0.15s, background 0.15s;
+  }
+  .act-btn svg { width: 15px; height: 15px; }
+  .act-btn:hover { background: var(--surface-2); }
+  .act-ok:hover  { color: var(--ok); }
+  .act-edit:hover { color: var(--accent); }
+  .act-del:hover { color: var(--danger); }
+
+  /* Чекбокс строки */
+  .redist-chk, #redistChkAll {
+    width: 15px; height: 15px; cursor: pointer;
+    accent-color: var(--accent);
+  }
+
   h2 {
     font-size: 22px; font-weight: 500; margin-bottom: 6px; letter-spacing: -0.01em; color: var(--text);
   }
@@ -2403,6 +2441,41 @@ function priorityBadge(gap) {
   return '<span class="pill ok">LOW</span>';
 }
 
+/* ---- Per-row KPI: ИЛ/КРП/Экономия для одной задачи ---- */
+function computeTaskKpi(task) {
+  const arts = (typeof state !== 'undefined' && state.articles) ? state.articles : [];
+  const a = arts.find(x => x.nmId === task.nmId);
+  const orders = a ? (a.orders || 0) : 0;
+  const oldDl = a ? (a.dl || 0) : 0;
+  const inZone = isTaskInZone(task);
+
+  let newDl = oldDl;
+  if (inZone && orders > 0) {
+    const oldLocal = orders * oldDl / 100;
+    let newLocal = oldLocal + task.qty * REDIST_CONSTANTS.REALIZATION_RATE;
+    if (newLocal > orders) newLocal = orders;
+    newDl = (newLocal / orders) * 100;
+  }
+
+  const oldKtr = ktrForDl(oldDl);
+  const newKtr = ktrForDl(newDl);
+  const oldKrp = krpForDl(oldDl);
+  const newKrp = krpForDl(newDl);
+
+  let savingsPerWeek = 0;
+  if (inZone && orders > 0) {
+    const C = REDIST_CONSTANTS;
+    const dKtr = oldKtr - newKtr;
+    const dKrp = oldKrp - newKrp;
+    const ordersPerWeek = orders / 4;
+    const price = getArticlePrice(task.nmId);
+    savingsPerWeek += ordersPerWeek * C.AVG_VOLUME_L * C.AVG_TARIFF_RUB_PER_L * C.WH_COEF * dKtr;
+    savingsPerWeek += ordersPerWeek * price * dKrp / 100;
+  }
+
+  return { oldKtr, newKtr, oldKrp, newKrp, savingsPerWeek: Math.max(0, savingsPerWeek), inZone };
+}
+
 function renderRedistTasks(result) {
   const { tasks, unresolved } = result;
   const container = document.getElementById('redistResult');
@@ -2416,17 +2489,45 @@ function renderRedistTasks(result) {
       .sort((a, b) => Number(a[0]) - Number(b[0]))
       .map(([sz, q]) => `<strong style="font-weight:500">${sz}</strong>:${q}`)
       .join(' · ');
+    const kpi = computeTaskKpi(t);
+    const improved = kpi.inZone && kpi.newKtr < kpi.oldKtr;
+    const arrowCls = improved ? ' kpi-good' : '';
+
+    // ИЛ: текущий → прогнозный
+    const ilCell = `<span class="mono">${kpi.oldKtr.toFixed(2)}</span>`
+      + `<span class="kpi-arrow${arrowCls}"> → </span>`
+      + `<span class="mono${arrowCls}">${kpi.newKtr.toFixed(2)}</span>`;
+
+    // КРП: текущий → прогнозный
+    const krpCell = `<span class="mono">${kpi.oldKrp.toFixed(2)}%</span>`
+      + `<span class="kpi-arrow${arrowCls}"> → </span>`
+      + `<span class="mono${arrowCls}">${kpi.newKrp.toFixed(2)}%</span>`;
+
+    // Экономия
+    const savCell = kpi.savingsPerWeek > 0
+      ? `<span class="mono kpi-good">+${Math.round(kpi.savingsPerWeek).toLocaleString('ru-RU')} ₽</span>`
+      : '<span class="mono muted">—</span>';
+
     return `
       <tr>
-        <td style="color:var(--text-soft);width:28px">${i + 1}</td>
-        <td>${priorityBadge(t.gap)}</td>
+        <td class="col-sticky col-s0"><input type="checkbox" class="redist-chk" data-idx="${i}"></td>
+        <td class="col-sticky col-s1" style="color:var(--text-soft);width:28px">${i + 1}</td>
+        <td class="col-sticky col-s2">${priorityBadge(t.gap)}</td>
         <td>${photoCell(t.nmId)}</td>
         <td>${t.fromWh}<div class="muted" style="font-size:11px">остаток ${t.fromStock + t.qty}</div></td>
         <td>${t.toWh}<div class="muted" style="font-size:11px">${t.region}</div>${t.strategyNote ? `<div style="font-size:12px;margin-top:3px;color:var(--text-dim);font-weight:500">${t.strategyNote}</div>` : ''}</td>
+        <td class="num" style="white-space:nowrap">${ilCell}</td>
+        <td class="num" style="white-space:nowrap">${krpCell}</td>
         <td class="num">${t.lastWeek} → <strong style="color:var(--accent);font-weight:500">${t.forecast}</strong></td>
         <td class="num">${t.currentAtTarget}</td>
         <td class="num"><strong style="font-weight:500">${t.qty}</strong></td>
+        <td class="num" style="white-space:nowrap">${savCell}</td>
         <td style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px">${sizesStr}</td>
+        <td style="white-space:nowrap">
+          <button class="act-btn act-ok" type="button" title="Принять заявку"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>
+          <button class="act-btn act-edit" type="button" title="Изменить количество"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+          <button class="act-btn act-del" type="button" title="Отклонить заявку"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </td>
       </tr>
     `;
   }).join('');
@@ -2461,16 +2562,23 @@ function renderRedistTasks(result) {
     <div class="card">
       <h3 style="margin-top:0">Заявки на перераспределение</h3>
       <p class="muted" style="margin-bottom:14px">Отсортированы по приоритету. HIGH — дефицит ≥20 шт, MED — 10–19, LOW — менее 10.</p>
-      <div style="overflow-x:auto">
-        <table>
+      <div class="redist-scroll">
+        <table class="redist-table">
           <thead>
             <tr>
-              <th>#</th><th>Приор.</th><th>Артикул</th>
+              <th class="col-sticky col-s0"><input type="checkbox" id="redistChkAll" title="Выбрать все"></th>
+              <th class="col-sticky col-s1">#</th>
+              <th class="col-sticky col-s2">Приор.</th>
+              <th>Артикул</th>
               <th>Откуда</th><th>Куда / регион</th>
+              <th class="num" title="Коэффициент территориального распределения (КТР) артикула. Текущий → прогнозный после принятия этой заявки.">ИЛ ⓘ</th>
+              <th class="num" title="Коэффициент распределения продаж (КРП) — % от цены товара, который добавляется к стоимости логистики. Цель — 0% (при доле локализации ≥60%).">КРП ⓘ</th>
               <th class="num">Пр.нед → прогноз</th>
               <th class="num">На целев.</th>
               <th class="num">К отправке</th>
+              <th class="num" title="Экономия в неделю при принятии этой заявки. Расчёт: объём × тариф × ΔКТР + цена × ΔКРП. Оценочно, точные значения после подключения тарифов WB.">Экономия ⓘ</th>
               <th>Размеры</th>
+              <th>Действия</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -2600,6 +2708,14 @@ document.querySelectorAll('.strategy-opt').forEach(btn => {
 
 // Применить сохранённую стратегию сразу при загрузке
 applyStrategyUi();
+
+// «Выбрать все» чекбокс — делегированный обработчик (элемент пересоздаётся)
+document.addEventListener('change', function(e) {
+  if (e.target && e.target.id === 'redistChkAll') {
+    const checked = e.target.checked;
+    document.querySelectorAll('.redist-chk').forEach(c => { c.checked = checked; });
+  }
+});
 
 document.getElementById('btnRedistExport').addEventListener('click', () => {
   const result = window.__lastRedist;
