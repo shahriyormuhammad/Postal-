@@ -315,6 +315,7 @@
   .active-sh-table th { text-align:left; font-weight:600; font-size:12px; color:var(--text-dim);
     padding:6px 8px; border-bottom:1px solid var(--border); }
   .active-sh-table td { padding:6px 8px; border-bottom:1px solid var(--surface-3); }
+  .pill-waiting { background:rgba(234,179,8,0.14); color:#92710a; }
   .pill-transit { background:rgba(79,109,250,0.12); color:var(--accent); }
   .pill-delivered { background:rgba(30,107,62,0.12); color:var(--ok); }
   .pill-stale { background:rgba(181,112,12,0.12); color:var(--warn); }
@@ -360,6 +361,15 @@
   .kpi-sel-reset { background:none; border:none; color:var(--accent);
     cursor:pointer; font-size:12px; font-weight:600; opacity:0.8; }
   .kpi-sel-reset:hover { opacity:1; }
+
+  /* Inline edit input (D.4) */
+  .edit-qty-input {
+    width:60px; padding:3px 6px; font-size:13px; font-family:'JetBrains Mono',ui-monospace,monospace;
+    border:1.5px solid var(--accent); border-radius:4px; text-align:center;
+    background:var(--surface); color:var(--text);
+  }
+  .edit-qty-input:focus { outline:none; box-shadow:0 0 0 2px rgba(79,109,250,0.25); }
+  .fade-out-row { transition:opacity 0.3s ease; opacity:0 !important; }
 
   /* Чекбокс строки */
   .redist-chk, #redistChkAll {
@@ -1090,7 +1100,7 @@ C-340,4,132,12,46.21"></textarea>
     </div>
     <div class="bottom-bar-actions">
       <button class="btn ghost" id="btnRejectSelected" type="button" style="font-size:12px">Отклонить выбранные</button>
-      <button class="btn" id="btnCreateSupply" type="button" style="font-size:12px">Создать поставку</button>
+      <button class="btn" id="btnCreateSupply" type="button" style="font-size:12px">Поймать слот</button>
     </div>
   </div>
 </section>
@@ -2831,7 +2841,7 @@ function addActiveShipment(task) {
     sizes: Object.assign({}, task.sizes),
     region: task.region || '',
     createdAt: Date.now(),
-    status: 'in_transit',
+    status: 'waiting_slot',
     stockAtCreation: currentStock,
     estimatedDays: getEstimatedDays(task.fromWh, task.toWh),
   });
@@ -2845,7 +2855,7 @@ function removeActiveShipment(id) {
 
 function isShipmentActive(nmId, fromWh, toWh) {
   return state.activeShipments.some(s =>
-    s.status === 'in_transit' && String(s.nmId) === String(nmId) && s.fromWh === fromWh && s.toWh === toWh
+    (s.status === 'waiting_slot' || s.status === 'in_transit') && String(s.nmId) === String(nmId) && s.fromWh === fromWh && s.toWh === toWh
   );
 }
 
@@ -2921,6 +2931,7 @@ function renderActiveShipments() {
   var statusPill = function(s) {
     if (s.status === 'delivered') return '<span class="pill pill-delivered">Доставлено</span>';
     if (s.status === 'stale') return '<span class="pill pill-stale" title="Более 14 дней без подтверждения — проверьте вручную">&gt;14 дн</span>';
+    if (s.status === 'waiting_slot') return '<span class="pill pill-waiting">Ожидает слот</span>';
     var days = Math.ceil((Date.now() - s.createdAt) / 86400000);
     return '<span class="pill pill-transit">В пути ' + days + ' дн</span>';
   };
@@ -3070,7 +3081,7 @@ document.addEventListener('click', function(e) {
     });
   }
   if (e.target && e.target.id === 'btnClearDelivered') {
-    state.activeShipments = state.activeShipments.filter(function(s) { return s.status === 'in_transit'; });
+    state.activeShipments = state.activeShipments.filter(function(s) { return s.status === 'waiting_slot' || s.status === 'in_transit'; });
     saveActiveShipments();
     renderActiveShipments();
   }
@@ -3148,7 +3159,7 @@ document.addEventListener('click', function(e) {
   }
 });
 
-// D.3: Создать поставку из выбранных
+// D.3: Поймать слот — добавить выбранные в очередь
 document.addEventListener('click', function(e) {
   if (e.target && (e.target.id === 'btnCreateSupply' || e.target.closest('#btnCreateSupply'))) {
     var sel = window.__redistSelection;
@@ -3159,25 +3170,10 @@ document.addEventListener('click', function(e) {
     sel.forEach(function(i) { if (tasks[i]) selectedTasks.push(tasks[i]); });
     if (!selectedTasks.length) return;
 
-    // Добавить в активные отправки
+    // Добавить в очередь на слот (статус waiting_slot)
     selectedTasks.forEach(function(t) { addActiveShipment(t); });
 
-    // XLSX экспорт
-    if (typeof XLSX !== 'undefined') {
-      var aoa = [['nmId', 'Откуда', 'Куда', 'Регион', 'Кол-во', 'Размеры', 'Стратегия']];
-      selectedTasks.forEach(function(t) {
-        var sizes = Object.entries(t.sizes).map(function(e) { return e[0] + ':' + e[1]; }).join('|');
-        aoa.push([t.nmId, t.fromWh, t.toWh, t.region, t.qty, sizes, t.strategy || '']);
-      });
-      var ws = XLSX.utils.aoa_to_sheet(aoa);
-      ws['!cols'] = [{wch:14},{wch:20},{wch:20},{wch:18},{wch:8},{wch:30},{wch:10}];
-      var wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Перераспределение');
-      var d = new Date().toISOString().slice(0, 10);
-      XLSX.writeFile(wb, 'redistribution-' + d + '.xlsx');
-    }
-
-    // Удалить принятые из tasks (обратный порядок для splice)
+    // Удалить из таблицы заявок (обратный порядок для splice)
     var indices = Array.from(sel).sort(function(a, b) { return b - a; });
     indices.forEach(function(i) { tasks.splice(i, 1); });
     window.__redistSelection = new Set();
@@ -3185,7 +3181,7 @@ document.addEventListener('click', function(e) {
     // Re-render
     renderRedistTasks(window.__lastRedist);
     renderActiveShipments();
-    showUndoToast('Создано ' + selectedTasks.length + ' отправок, файл скачан', null, 4000);
+    showUndoToast(selectedTasks.length + ' заявок добавлены в очередь на слот', null, 4000);
   }
 });
 
@@ -3213,6 +3209,128 @@ document.addEventListener('click', function(e) {
       });
       renderRedistTasks(window.__lastRedist);
     });
+  }
+});
+
+/* ---- D.4: Per-row действия ✓ / ✎ / ✗ ---- */
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest && e.target.closest('.act-btn');
+  if (!btn) return;
+  var tr = btn.closest('tr');
+  if (!tr) return;
+  var chk = tr.querySelector('.redist-chk');
+  if (!chk) return;
+  var idx = Number(chk.dataset.idx);
+  var tasks = (window.__lastRedist && window.__lastRedist.tasks) ? window.__lastRedist.tasks : [];
+  var task = tasks[idx];
+  if (!task) return;
+
+  // ✓ Accept — добавить в очередь на слот
+  if (btn.classList.contains('act-ok')) {
+    addActiveShipment(task);
+    // Fade-out анимация
+    tr.classList.add('fade-out-row');
+    setTimeout(function() {
+      tasks.splice(idx, 1);
+      // Обновить selection: удалить idx, сдвинуть остальные
+      var newSel = new Set();
+      window.__redistSelection.forEach(function(i) {
+        if (i < idx) newSel.add(i);
+        else if (i > idx) newSel.add(i - 1);
+      });
+      window.__redistSelection = newSel;
+      renderRedistTasks(window.__lastRedist);
+      renderActiveShipments();
+    }, 300);
+    showUndoToast('Заявка добавлена в очередь на слот', null, 3000);
+    return;
+  }
+
+  // ✎ Edit — inline редактирование количества
+  if (btn.classList.contains('act-edit')) {
+    var qtyTd = tr.querySelectorAll('td')[10]; // 11-я колонка (К отправке)
+    if (!qtyTd || qtyTd.querySelector('.edit-qty-input')) return; // уже в режиме редактирования
+    var oldQty = task.qty;
+    var maxQty = task.fromStock + task.qty; // максимум = всё что было у донора
+    qtyTd.innerHTML = '<input type="number" class="edit-qty-input" value="' + oldQty + '" min="1" max="' + maxQty + '">';
+    var input = qtyTd.querySelector('.edit-qty-input');
+    input.focus();
+    input.select();
+
+    // Заменить кнопки ✎ на ✓ confirm и ✗ cancel
+    var actionsTd = tr.querySelector('td:last-child');
+    var origActions = actionsTd.innerHTML;
+    actionsTd.innerHTML = '<button class="act-btn act-confirm-edit" type="button" title="Подтвердить"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>'
+      + '<button class="act-btn act-cancel-edit" type="button" title="Отмена"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>';
+
+    function confirmEdit() {
+      var newQty = Math.max(1, Math.min(parseInt(input.value) || oldQty, maxQty));
+      if (newQty !== task.qty) {
+        // Пересчитать sizes пропорционально
+        var oldSizes = task.sizes;
+        var totalOld = Object.values(oldSizes).reduce(function(s, v) { return s + v; }, 0);
+        if (totalOld > 0 && newQty !== totalOld) {
+          var newSizes = {};
+          var assigned = 0;
+          var entries = Object.entries(oldSizes).sort(function(a, b) { return b[1] - a[1]; });
+          entries.forEach(function(e) {
+            var portion = Math.round((e[1] / totalOld) * newQty);
+            newSizes[e[0]] = portion;
+            assigned += portion;
+          });
+          // Корректировка округления
+          while (assigned < newQty) {
+            for (var k = 0; k < entries.length && assigned < newQty; k++) {
+              newSizes[entries[k][0]]++;
+              assigned++;
+            }
+          }
+          while (assigned > newQty) {
+            for (var k = entries.length - 1; k >= 0 && assigned > newQty; k--) {
+              if (newSizes[entries[k][0]] > 0) { newSizes[entries[k][0]]--; assigned--; }
+            }
+          }
+          task.sizes = newSizes;
+        }
+        task.qty = newQty;
+      }
+      renderRedistTasks(window.__lastRedist);
+      renderRedistKpi(window.__redistSelection && window.__redistSelection.size > 0 ? { filterIndices: window.__redistSelection } : {});
+    }
+    function cancelEdit() {
+      renderRedistTasks(window.__lastRedist);
+    }
+
+    input.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); confirmEdit(); }
+      if (ev.key === 'Escape') { ev.preventDefault(); cancelEdit(); }
+    });
+    actionsTd.querySelector('.act-confirm-edit').addEventListener('click', function(ev) { ev.stopPropagation(); confirmEdit(); });
+    actionsTd.querySelector('.act-cancel-edit').addEventListener('click', function(ev) { ev.stopPropagation(); cancelEdit(); });
+    return;
+  }
+
+  // ✗ Reject — отклонить одну заявку
+  if (btn.classList.contains('act-del')) {
+    var removedTask = task;
+    var removedIdx = idx;
+    tr.classList.add('fade-out-row');
+    setTimeout(function() {
+      tasks.splice(removedIdx, 1);
+      // Обновить selection
+      var newSel = new Set();
+      window.__redistSelection.forEach(function(i) {
+        if (i < removedIdx) newSel.add(i);
+        else if (i > removedIdx) newSel.add(i - 1);
+      });
+      window.__redistSelection = newSel;
+      renderRedistTasks(window.__lastRedist);
+    }, 300);
+    showUndoToast('Заявка отклонена', function() {
+      tasks.splice(removedIdx, 0, removedTask);
+      renderRedistTasks(window.__lastRedist);
+    });
+    return;
   }
 });
 
