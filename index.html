@@ -10,19 +10,19 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root {
-    --bg: #f4f5f8;
+    --bg: #F5F6F8;
     --surface: #ffffff;
-    --surface-2: #fafbfc;
+    --surface-2: #f8f9fb;
     --surface-3: #eef0f4;
-    --border: #e5e7eb;
+    --border: rgba(0,0,0,0.06);
     --border-2: #d1d5db;
     --text: #1a1d26;
     --text-dim: #6b7280;
     --text-soft: #9ca3af;
     --accent: #4f6dfa;
     --accent-2: #3d56d8;
-    --accent-soft: #eef1ff;
-    --accent-border: #d4daff;
+    --accent-soft: rgba(79,109,250,0.08);
+    --accent-border: rgba(79,109,250,0.18);
     --danger: #b03a28;
     --danger-soft: #fef0ed;
     --danger-border: #f0c8c0;
@@ -33,8 +33,9 @@
     --ok-soft: #e8f3ec;
     --ok-border: #c6e4d0;
     --radius: 10px;
-    --radius-lg: 14px;
+    --radius-lg: 12px;
     --radius-sm: 6px;
+    --shadow: 0 1px 2px rgba(0,0,0,0.04);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
@@ -231,46 +232,27 @@
   .sub-panel { display: none; animation: fadein 0.2s ease; }
   .sub-panel.active { display: block; }
 
-  /* KPI-блок «Перераспределение» (glassmorphism) */
+  /* KPI-блок «Перераспределение» */
   .kpi-grid {
-    position: relative;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 12px;
-    margin: 0 0 20px;
-    padding: 14px;
-    border-radius: var(--radius-lg);
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.05), rgba(139, 92, 246, 0.05));
+    margin: 0 0 16px;
   }
   @media (max-width: 980px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 520px) { .kpi-grid { grid-template-columns: 1fr; } }
 
   .kpi-card {
-    position: relative;
     display: flex;
     flex-direction: column;
-    min-height: 150px;
-    padding: 16px 18px;
+    padding: 14px 18px;
     border-radius: var(--radius-lg);
-    background: rgba(255, 255, 255, 0.55);
+    background: var(--surface);
     border: 0.5px solid var(--border);
-    backdrop-filter: blur(14px) saturate(160%);
-    -webkit-backdrop-filter: blur(14px) saturate(160%);
-    box-shadow: 0 1px 2px rgba(20, 25, 45, 0.03), 0 4px 14px rgba(20, 25, 45, 0.04);
-    overflow: hidden;
+    box-shadow: var(--shadow);
   }
-  .kpi-card::before {
-    content: ""; position: absolute; inset: 0;
-    background: linear-gradient(135deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 60%);
-    pointer-events: none;
-  }
-  .kpi-card > * { position: relative; }
 
-  .kpi-accent {
-    background: linear-gradient(135deg, rgba(79, 109, 250, 0.14), rgba(79, 109, 250, 0.05));
-    border-color: var(--accent-border);
-  }
-  .kpi-accent .kpi-value { color: var(--accent); }
+  .kpi-accent .kpi-value { color: var(--ok); }
 
   .kpi-label {
     display: inline-flex; align-items: center; gap: 6px;
@@ -289,12 +271,11 @@
 
   .kpi-value {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 26px; font-weight: 500; letter-spacing: -0.02em;
-    color: var(--text); line-height: 1.1;
-    transition: color 0.3s ease;
+    font-size: 24px; font-weight: 500; letter-spacing: -0.02em;
+    color: var(--text); line-height: 1.2;
   }
   .kpi-sub {
-    font-size: 11px; margin-top: auto; padding-top: 8px; color: var(--text-dim);
+    font-size: 11px; margin-top: auto; padding-top: 6px; color: var(--text-dim);
   }
   .kpi-delta-up { color: var(--ok); }
   .kpi-delta-down { color: var(--danger); }
@@ -314,7 +295,7 @@
 
   .kpi-note {
     font-size: 10px; color: var(--text-dim); margin-top: 6px;
-    padding: 4px 8px; background: rgba(255,255,255,0.5);
+    padding: 4px 8px; background: var(--surface-2);
     border-radius: 4px; line-height: 1.35;
   }
 
@@ -325,21 +306,21 @@
   }
   .strategy-switch {
     display: inline-flex; gap: 2px;
-    background: var(--surface-2); border-radius: 10px; padding: 3px;
+    background: var(--surface-2); border-radius: 100px; padding: 2px;
     border: 0.5px solid var(--border);
+    height: 28px; align-items: center;
   }
   .strategy-opt {
     background: none; border: none; cursor: pointer;
-    padding: 6px 14px; border-radius: 8px;
-    font: inherit; font-size: 13px; font-weight: 500;
-    color: var(--text-dim);
-    transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+    padding: 0 12px; border-radius: 100px; height: 24px;
+    font: inherit; font-size: 12px; font-weight: 500;
+    color: var(--text-dim); line-height: 24px;
+    transition: background 0.15s, color 0.15s;
     white-space: nowrap;
   }
   .strategy-opt:hover { color: var(--text); }
   .strategy-opt.active {
-    background: var(--surface); color: var(--accent);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    background: var(--accent-soft); color: var(--accent);
   }
 
   /* Skeleton-loader на время пересчёта */
@@ -364,17 +345,17 @@
 
   /* Таблица заявок перераспределения */
   .redist-scroll { overflow-x: auto; position: relative; }
-  .redist-table { border-collapse: collapse; min-width: 900px; }
+  .redist-table { border-collapse: collapse; width: 100%; min-width: 700px; }
   .redist-table th, .redist-table td { padding: 6px 8px; }
   .redist-table thead th { position: sticky; top: 0; z-index: 3; background: var(--surface); }
 
   /* Sticky: первые 3 колонки (☐, #, Приор.) */
-  .col-sticky { position: sticky; z-index: 2; background: var(--surface); }
+  .col-sticky { position: sticky; z-index: 2; background: inherit; }
   .col-s0 { left: 0; min-width: 30px; width: 30px; }
   .col-s1 { left: 30px; min-width: 28px; width: 28px; }
   .col-s2 { left: 58px; }
-  .redist-table thead .col-sticky { z-index: 4; }
-  .redist-table tbody tr:hover .col-sticky { background: var(--surface-2); }
+  .redist-table thead .col-sticky { z-index: 4; background: var(--surface); }
+  .redist-table tbody tr:hover .col-sticky { background: var(--surface-3); }
 
   /* Моноширинный для KPI/экономии */
   .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; }
@@ -427,13 +408,16 @@
   .redist-bottom-bar {
     position:sticky; bottom:0; left:0; right:0;
     background:var(--surface); border-top:1px solid var(--border);
-    padding:10px 20px; display:flex; align-items:center;
+    padding:8px 20px; display:flex; align-items:center;
     justify-content:space-between; z-index:20;
-    box-shadow:0 -4px 12px rgba(20,30,60,0.08);
+    box-shadow:0 -4px 12px rgba(0,0,0,0.06);
+    height:48px;
   }
   .bottom-bar-info { display:flex; gap:8px; align-items:center; font-size:13px; }
   .bottom-bar-sep { color:var(--text-dim); }
   .bottom-bar-actions { display:flex; gap:8px; }
+  .bottom-bar-actions .btn { height:32px; padding:0 14px; font-size:13px; line-height:32px; }
+  .bottom-bar-actions .btn.ghost { height:32px; padding:0 12px; font-size:12px; line-height:32px; }
 
   /* Selection badge (D.3) */
   .kpi-selection-badge {
@@ -455,6 +439,80 @@
   .edit-qty-input:focus { outline:none; box-shadow:0 0 0 2px rgba(79,109,250,0.25); }
   .fade-out-row { transition:opacity 0.3s ease; opacity:0 !important; }
 
+  /* Redist 70/30 grid layout */
+  .redist-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
+    gap: 16px;
+    align-items: start;
+  }
+  .redist-main { min-width: 0; }
+  .redist-sidebar {
+    display: flex; flex-direction: column; gap: 12px;
+    position: sticky; top: 0;
+  }
+  @media (max-width: 1199px) {
+    .redist-layout { grid-template-columns: 1fr; }
+    .redist-sidebar {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 12px; position: static;
+    }
+  }
+  @media (max-width: 767px) {
+    .redist-sidebar { grid-template-columns: 1fr; }
+  }
+
+  /* Widget cards */
+  .widget-card {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+  }
+  .widget-title {
+    font-size: 13px; font-weight: 500;
+    color: var(--text-dim); margin: 0 0 10px;
+  }
+  .widget-empty {
+    font-size: 12px; color: var(--text-soft);
+    text-align: center; padding: 12px 0;
+  }
+
+  /* Widget 1: Worst KTR */
+  .ktr-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 0; font-size: 13px;
+  }
+  .ktr-nm { font-family: 'JetBrains Mono', monospace; color: var(--text); min-width: 80px; font-size: 12px; }
+  .ktr-bar-wrap { flex: 1; height: 4px; border-radius: 2px; background: var(--surface-3); }
+  .ktr-bar { height: 100%; border-radius: 2px; transition: width 300ms ease; }
+  .ktr-bar.danger { background: var(--danger); }
+  .ktr-bar.warn { background: var(--warn); }
+  .ktr-bar.ok { background: var(--ok); }
+  .ktr-value { font-family: 'JetBrains Mono', monospace; font-weight: 600; min-width: 36px; text-align: right; font-size: 12px; }
+  .ktr-value.danger { color: var(--danger); }
+  .ktr-value.warn { color: var(--warn); }
+  .ktr-value.ok { color: var(--ok); }
+
+  /* Widget 2: Stock by okrug */
+  .okrug-row {
+    display: flex; justify-content: space-between;
+    padding: 4px 0; font-size: 13px;
+    border-bottom: 1px solid var(--surface-3);
+  }
+  .okrug-row:last-child { border-bottom: none; }
+  .okrug-name { color: var(--text); }
+  .okrug-qty { font-family: 'JetBrains Mono', monospace; font-weight: 500; color: var(--text-dim); font-size: 12px; }
+
+  /* Widget 3: In transit compact */
+  .transit-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 0; font-size: 13px;
+  }
+  .transit-nm { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  .transit-route { color: var(--text-soft); font-size: 11px; }
+
   /* Чекбокс строки */
   .redist-chk, #redistChkAll {
     width: 15px; height: 15px; cursor: pointer;
@@ -472,7 +530,8 @@
   /* Cards */
   .card {
     background: var(--surface); border: 0.5px solid var(--border);
-    border-radius: var(--radius-lg); padding: 18px 22px; margin-bottom: 14px;
+    border-radius: 12px; padding: 16px 20px; margin-bottom: 14px;
+    box-shadow: var(--shadow);
   }
   .card.accent { border-color: var(--accent-border); background: var(--accent-soft); }
   .card.danger { border-color: var(--danger-border); background: var(--danger-soft); }
@@ -542,13 +601,14 @@
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   thead th {
     text-align: left; font-size: 11px; color: var(--text-dim); font-weight: 500;
-    padding: 10px 12px; border-bottom: 0.5px solid var(--border);
+    padding: 10px 8px; border-bottom: 0.5px solid var(--border);
   }
   tbody td {
-    padding: 10px 12px; border-bottom: 0.5px solid var(--surface-3);
+    padding: 10px 8px; border-bottom: 0.5px solid var(--surface-3);
     color: var(--text); vertical-align: middle;
   }
-  tbody tr:hover { background: var(--surface-2); }
+  tbody tr:nth-child(even) { background: var(--surface-2); }
+  tbody tr:hover { background: var(--surface-3); }
   .num { text-align: right; font-variant-numeric: tabular-nums; }
 
   .pill {
@@ -648,7 +708,7 @@
     min-width: 260px; background: var(--surface);
     border: 0.5px solid var(--border); border-radius: var(--radius-lg);
     padding: 6px; z-index: 100;
-    box-shadow: 0 4px 24px rgba(20, 30, 60, 0.08);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
   }
   .cab-menu.hidden { display: none; }
   .cab-menu-label {
@@ -1087,9 +1147,8 @@ C-340,4,132,12,46.21"></textarea>
     <button class="kpi-sel-reset" id="btnKpiResetSel" type="button" title="Сбросить выделение">&times; Сбросить</button>
   </div>
 
-  <!-- KPI-блок -->
+  <!-- KPI-блок (100% ширины, над grid) -->
   <div class="kpi-grid" id="redistKpi">
-    <!-- Карточка 1: текущий ИЛ -->
     <div class="kpi-card">
       <div class="kpi-label">
         <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
@@ -1098,8 +1157,6 @@ C-340,4,132,12,46.21"></textarea>
       <div class="kpi-value" id="kpiIlCurrent">—</div>
       <div class="kpi-sub muted" id="kpiDate">данных нет</div>
     </div>
-
-    <!-- Карточка 2: текущий ИРП -->
     <div class="kpi-card">
       <div class="kpi-label">
         <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
@@ -1108,8 +1165,6 @@ C-340,4,132,12,46.21"></textarea>
       <div class="kpi-value" id="kpiIrpCurrent">—</div>
       <div class="kpi-sub muted">цель → 0%</div>
     </div>
-
-    <!-- Карточка 3: прогноз после перевозки -->
     <div class="kpi-card">
       <div class="kpi-label">
         <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
@@ -1123,8 +1178,6 @@ C-340,4,132,12,46.21"></textarea>
       <div class="kpi-value" id="kpiIlForecast">—</div>
       <div class="kpi-sub" id="kpiForecastDelta">ИРП: —</div>
     </div>
-
-    <!-- Карточка 4 (акцент): экономия -->
     <div class="kpi-card kpi-accent">
       <div class="kpi-label">
         <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -1132,22 +1185,22 @@ C-340,4,132,12,46.21"></textarea>
       </div>
       <div class="kpi-value" id="kpiSavings">—</div>
       <div class="kpi-sub">₽/нед при выполнении заявок</div>
-      <div class="kpi-note">Оценочный расчёт. Точные значения — после подключения тарифов WB.</div>
+      <div class="kpi-note">Оценочный расчёт.</div>
     </div>
   </div>
+
+  <!-- Grid 70/30 -->
+  <div class="redist-layout" id="redistLayout">
+    <div class="redist-main">
 
   <div class="card">
     <div class="redist-card-head">
       <h3 style="margin:0">Параметры</h3>
       <div class="strategy-switch" role="tablist" aria-label="Стратегия распределения">
         <button class="strategy-opt active" data-strategy="speed" type="button"
-          title="Топовые склады по скорости доставки в регион. Дороже приёмка, но быстрее в ПВЗ → буст в поиске WB">
-          🚀 Скорость
-        </button>
+          title="Топовые склады по скорости доставки в регион">Скорость</button>
         <button class="strategy-opt" data-strategy="cost" type="button"
-          title="Самые дешёвые склады в зоне доставки. Экономия на тарифах приёмки и логистики">
-          💰 Стоимость
-        </button>
+          title="Самые дешёвые склады в зоне доставки">Стоимость</button>
       </div>
     </div>
     <div class="input-row three" style="margin-top:14px">
@@ -1212,6 +1265,29 @@ C-340,4,132,12,46.21"></textarea>
   </div>
 
   <div id="redistResult"></div>
+
+    </div><!-- /.redist-main -->
+
+    <!-- ПРАВАЯ КОЛОНКА: информационная (read-only) -->
+    <div class="redist-sidebar" id="redistSidebar">
+      <div class="widget-card" id="widgetWorstKtr">
+        <h4 class="widget-title">Худший ИЛ по артикулам</h4>
+        <div class="widget-body" id="widgetWorstKtrBody">
+          <div class="widget-empty">Нет данных</div>
+        </div>
+      </div>
+      <div class="widget-card" id="widgetStockByOkrug">
+        <h4 class="widget-title">Остатки по округам</h4>
+        <div class="widget-body" id="widgetStockByOkrugBody">
+          <div class="widget-empty">Нет данных</div>
+        </div>
+      </div>
+      <div class="widget-card" id="widgetInTransit" style="display:none">
+        <h4 class="widget-title">В пути сейчас</h4>
+        <div class="widget-body" id="widgetInTransitBody"></div>
+      </div>
+    </div>
+  </div><!-- /.redist-layout -->
 
   <!-- Sticky bottom bar (D.3) -->
   <div id="redistBottomBar" class="redist-bottom-bar" style="display:none">
@@ -2715,6 +2791,81 @@ function computeTaskKpi(task) {
   return { oldKtr, newKtr, oldKrp, newKrp, oldDl, newDl, savingsPerWeek: Math.max(0, savingsPerWeek), inZone, hasArticle };
 }
 
+/* =========================================================
+   ВИДЖЕТЫ ПРАВОЙ КОЛОНКИ (R.3)
+   ========================================================= */
+function renderWidgetWorstKtr() {
+  var body = document.getElementById('widgetWorstKtrBody');
+  if (!body) return;
+  var articles = [];
+  if (window.state && state.articles) {
+    Object.keys(state.articles).forEach(function(nmId) {
+      var a = state.articles[nmId];
+      if (a && a.ktr !== undefined && a.ktr !== null && !isNaN(a.ktr)) {
+        articles.push({ nmId: nmId, ktr: a.ktr });
+      }
+    });
+  }
+  if (articles.length === 0) { body.innerHTML = '<div class="widget-empty">Нет данных</div>'; return; }
+  articles.sort(function(a, b) { return b.ktr - a.ktr; });
+  var top5 = articles.slice(0, 5);
+  var html = '';
+  top5.forEach(function(a) {
+    var cls = a.ktr > 1.5 ? 'danger' : a.ktr > 1.2 ? 'warn' : 'ok';
+    var pct = Math.min(100, (a.ktr / 1.70) * 100);
+    html += '<div class="ktr-row">'
+      + '<span class="ktr-nm">' + a.nmId + '</span>'
+      + '<div class="ktr-bar-wrap"><div class="ktr-bar ' + cls + '" style="width:' + pct.toFixed(0) + '%"></div></div>'
+      + '<span class="ktr-value ' + cls + '">' + a.ktr.toFixed(2) + '</span></div>';
+  });
+  body.innerHTML = html;
+}
+
+function renderWidgetStockByOkrug() {
+  var body = document.getElementById('widgetStockByOkrugBody');
+  if (!body) return;
+  if (!state || !state.stockRows || state.stockRows.length === 0) {
+    body.innerHTML = '<div class="widget-empty">Нет данных</div>'; return;
+  }
+  var okrugMap = {};
+  state.stockRows.forEach(function(r) {
+    var info = (typeof WAREHOUSE_TARIFFS !== 'undefined') ? WAREHOUSE_TARIFFS[r.warehouse] : null;
+    if (!info) return;
+    var fed = info.federal || 'Другое';
+    if (fed === 'СФО' || fed === 'ДФО') fed = 'СФО+ДФО';
+    if (fed === 'ЮФО' || fed === 'СКФО') fed = 'ЮФО+СКФО';
+    okrugMap[fed] = (okrugMap[fed] || 0) + (r.qty || r.total || 0);
+  });
+  var rows = Object.keys(okrugMap).map(function(k) { return { name: k, qty: okrugMap[k] }; });
+  rows.sort(function(a, b) { return b.qty - a.qty; });
+  if (rows.length === 0) { body.innerHTML = '<div class="widget-empty">Нет данных</div>'; return; }
+  var html = '';
+  rows.forEach(function(r) {
+    html += '<div class="okrug-row"><span class="okrug-name">' + r.name
+      + '</span><span class="okrug-qty">' + r.qty.toLocaleString('ru-RU') + ' шт</span></div>';
+  });
+  body.innerHTML = html;
+}
+
+function renderWidgetInTransit() {
+  var wrap = document.getElementById('widgetInTransit');
+  var body = document.getElementById('widgetInTransitBody');
+  if (!wrap || !body) return;
+  var active = (state && state.activeShipments || []).filter(function(s) { return s.status !== 'delivered'; });
+  if (active.length === 0) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  var html = '';
+  active.forEach(function(s) {
+    var pillClass = s.status === 'waiting_slot' ? 'pill-waiting' : 'pill-transit';
+    var pillText = s.status === 'waiting_slot' ? 'Слот' : 'В пути';
+    html += '<div class="transit-row">'
+      + '<span class="pill ' + pillClass + '" style="font-size:10px;padding:2px 6px">' + pillText + '</span>'
+      + '<span class="transit-nm">' + s.nmId + '</span>'
+      + '<span class="transit-route">' + s.fromWh + ' → ' + s.toWh + '</span></div>';
+  });
+  body.innerHTML = html;
+}
+
 function renderRedistTasks(result) {
   const { tasks, unresolved } = result;
   const container = document.getElementById('redistResult');
@@ -2764,21 +2915,19 @@ function renderRedistTasks(result) {
       ? `<span class="mono kpi-good">+${Math.round(kpi.savingsPerWeek).toLocaleString('ru-RU')} ₽</span>`
       : '<span class="mono muted">—</span>';
 
+    const tooltipData = `Пр.нед: ${t.lastWeek} → ${t.forecast} | На целев: ${t.currentAtTarget} | КРП: ${kpi.hasArticle ? kpi.oldKrp.toFixed(2)+'%' : '—'} | Размеры: ${sizesStr}`;
+
     return `
-      <tr>
+      <tr title="${tooltipData}">
         <td class="col-sticky col-s0"><input type="checkbox" class="redist-chk" data-idx="${i}"></td>
         <td class="col-sticky col-s1" style="color:var(--text-soft);width:28px">${i + 1}</td>
         <td class="col-sticky col-s2">${priorityBadge(t.gap)}</td>
         <td>${photoCell(t.nmId)}</td>
         <td>${t.fromWh}<div class="muted" style="font-size:11px">остаток ${t.fromStock + t.qty}</div></td>
-        <td>${t.toWh}<div class="muted" style="font-size:11px">${t.region}</div>${t.strategyNote ? `<div style="font-size:12px;margin-top:3px;color:var(--text-dim);font-weight:500">${t.strategyNote}</div>` : ''}</td>
+        <td>${t.toWh}<div class="muted" style="font-size:11px">${t.region}</div></td>
         <td class="num" style="white-space:nowrap">${ilCell}</td>
-        <td class="num" style="white-space:nowrap">${krpCell}</td>
-        <td class="num">${t.lastWeek} → <strong style="color:var(--accent);font-weight:500">${t.forecast}</strong></td>
-        <td class="num">${t.currentAtTarget}</td>
         <td class="num"><strong style="font-weight:500">${t.qty}</strong></td>
         <td class="num" style="white-space:nowrap">${savCell}</td>
-        <td style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px">${sizesStr}</td>
         <td style="white-space:nowrap">
           <button class="act-btn act-ok" type="button" title="Принять заявку"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>
           <button class="act-btn act-edit" type="button" title="Изменить количество"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
@@ -2826,14 +2975,10 @@ function renderRedistTasks(result) {
               <th class="col-sticky col-s1">#</th>
               <th class="col-sticky col-s2">Приор.</th>
               <th>Артикул</th>
-              <th>Откуда</th><th>Куда / регион</th>
-              <th class="num" title="Коэффициент территориального распределения (КТР) артикула. Текущий → прогнозный после принятия этой заявки.">ИЛ ⓘ</th>
-              <th class="num" title="Коэффициент распределения продаж (КРП) — % от цены товара, который добавляется к стоимости логистики. Цель — 0% (при доле локализации ≥60%).">КРП ⓘ</th>
-              <th class="num">Пр.нед → прогноз</th>
-              <th class="num">На целев.</th>
-              <th class="num">К отправке</th>
-              <th class="num" title="Экономия в неделю при принятии этой заявки. Расчёт: объём × тариф × ΔКТР + цена × ΔКРП. Оценочно, точные значения после подключения тарифов WB.">Экономия ⓘ</th>
-              <th>Размеры</th>
+              <th>Откуда</th><th>Куда</th>
+              <th class="num" title="Коэффициент территориального распределения (КТР).">КТР ⓘ</th>
+              <th class="num">Кол-во</th>
+              <th class="num" title="Экономия ₽/нед при принятии заявки.">Экономия ⓘ</th>
               <th>Действия</th>
             </tr>
           </thead>
@@ -2974,11 +3119,13 @@ function addActiveShipment(task) {
     estimatedDays: getEstimatedDays(task.fromWh, task.toWh),
   });
   saveActiveShipments();
+  if (typeof renderWidgetInTransit === 'function') renderWidgetInTransit();
 }
 
 function removeActiveShipment(id) {
   state.activeShipments = state.activeShipments.filter(s => s.id !== id);
   saveActiveShipments();
+  if (typeof renderWidgetInTransit === 'function') renderWidgetInTransit();
 }
 
 function isShipmentActive(nmId, fromWh, toWh) {
@@ -3143,6 +3290,9 @@ function runRedistBuild() {
   const result = computeRedistribution(stock, orders, opts);
   renderRedistTasks(result);
   if (typeof renderRedistKpi === 'function') renderRedistKpi();
+  if (typeof renderWidgetWorstKtr === 'function') renderWidgetWorstKtr();
+  if (typeof renderWidgetStockByOkrug === 'function') renderWidgetStockByOkrug();
+  if (typeof renderWidgetInTransit === 'function') renderWidgetInTransit();
 }
 
 document.getElementById('btnRedist').addEventListener('click', runRedistBuild);
