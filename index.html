@@ -310,6 +310,34 @@
   .act-edit:hover { color: var(--accent); }
   .act-del:hover { color: var(--danger); }
 
+  /* Активные отправки (D.2) */
+  .active-sh-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .active-sh-table th { text-align:left; font-weight:600; font-size:12px; color:var(--text-dim);
+    padding:6px 8px; border-bottom:1px solid var(--border); }
+  .active-sh-table td { padding:6px 8px; border-bottom:1px solid var(--surface-3); }
+  .pill-transit { background:rgba(79,109,250,0.12); color:var(--accent); }
+  .pill-delivered { background:rgba(30,107,62,0.12); color:var(--ok); }
+  .pill-stale { background:rgba(181,112,12,0.12); color:var(--warn); }
+  .toggle-arrow { font-size:12px; color:var(--text-dim); transition:transform 0.2s; display:inline-block; }
+  .toggle-arrow.open { transform:rotate(180deg); }
+  .btn-remove-sh { background:none; border:none; cursor:pointer; color:var(--text-dim);
+    font-size:16px; padding:2px 6px; border-radius:4px; }
+  .btn-remove-sh:hover { color:var(--danger); background:var(--surface-2); }
+  .est-days { font-size:11px; color:var(--text-dim); }
+
+  /* Toast (D.2/D.3/D.4) */
+  .toast-container { position:fixed; bottom:80px; left:50%; transform:translateX(-50%);
+    z-index:100; display:flex; flex-direction:column; gap:8px; }
+  .toast-undo { background:var(--surface-2); border:1px solid var(--border);
+    border-radius:var(--radius); padding:10px 16px; font-size:13px;
+    display:flex; align-items:center; gap:12px;
+    box-shadow:0 4px 14px rgba(0,0,0,0.12); position:relative; overflow:hidden; }
+  .toast-progress { position:absolute; bottom:0; left:0; height:3px;
+    background:var(--accent); animation:toastCountdown 5s linear forwards; }
+  @keyframes toastCountdown { from { width:100%; } to { width:0; } }
+  .toast-undo-btn { background:none; border:none; color:var(--accent);
+    cursor:pointer; font-weight:600; font-size:13px; white-space:nowrap; }
+
   /* Чекбокс строки */
   .redist-chk, #redistChkAll {
     width: 15px; height: 15px; cursor: pointer;
@@ -1000,6 +1028,23 @@ C-340,4,132,12,46.21"></textarea>
     </div>
   </div>
 
+  <!-- Активные отправки (D.2) -->
+  <div id="redistActiveWrap" style="display:none">
+    <div class="card" style="margin-bottom:18px">
+      <div class="redist-card-head" style="cursor:pointer" id="activeShipmentsToggle">
+        <h3 style="margin:0">В пути <span id="activeCount" class="pill" style="font-size:12px">0</span></h3>
+        <span class="toggle-arrow" id="activeArrow">&#9660;</span>
+      </div>
+      <div id="activeShipmentsBody" style="display:none;margin-top:12px">
+        <div id="activeShipmentsList"></div>
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button class="btn ghost" id="btnRefreshStatuses" type="button" style="font-size:12px">Обновить статусы</button>
+          <button class="btn ghost" id="btnClearDelivered" type="button" style="font-size:12px">Убрать доставленные</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="redistResult"></div>
 </section>
 
@@ -1674,6 +1719,7 @@ const DEMO_ARTICLES = [
 const state = {
   mode: 'demo',
   articles: [],
+  activeShipments: [],
 };
 
 /* =========================================================
@@ -2338,8 +2384,10 @@ function computeRedistribution(stockRows, orderRows, opts) {
     if (gap < minGap) continue;
 
     // Кандидаты-доноры: склады с этим артикулом, кроме целевого, с остатком > буфера
+    // D.2: исключаем пары с активной отправкой
     const donors = [...stockMap.values()]
-      .filter(s => s.nmId === f.nmId && s.warehouse !== f.targetWh.name && s.total > 0)
+      .filter(s => s.nmId === f.nmId && s.warehouse !== f.targetWh.name && s.total > 0
+        && !isShipmentActive(f.nmId, s.warehouse, f.targetWh.name))
       .sort((a, b) => b.total - a.total);
 
     let remaining = gap;
@@ -2673,6 +2721,183 @@ function applyStrategyUi() {
   });
 }
 
+/* ---- Активные отправки (D.2) ---- */
+const ACTIVE_SHIPMENTS_KEY = 'postal_active_shipments';
+
+const ESTIMATED_DAYS_BY_ZONE_DISTANCE = {
+  same_okrug: 3,
+  adjacent_okrug: 7,
+  cross_country: 14,
+  far_east: 21,
+};
+const ADJACENT_OKRUGS = {
+  "ЦФО": ["СЗФО", "ПФО", "ЮФО"],
+  "СЗФО": ["ЦФО"],
+  "ЮФО": ["ЦФО", "СКФО", "ПФО"],
+  "СКФО": ["ЮФО", "ПФО"],
+  "ПФО": ["ЦФО", "ЮФО", "СКФО", "УФО"],
+  "УФО": ["ПФО", "СФО"],
+  "СФО": ["УФО", "ДФО"],
+  "ДФО": ["СФО"],
+};
+
+function getEstimatedDays(fromWh, toWh) {
+  const fromOkrug = (WAREHOUSE_TARIFFS[fromWh] || {}).federal;
+  const toOkrug = (WAREHOUSE_TARIFFS[toWh] || {}).federal;
+  if (!fromOkrug || !toOkrug) return 14;
+  if (fromOkrug === toOkrug) return ESTIMATED_DAYS_BY_ZONE_DISTANCE.same_okrug;
+  if (fromOkrug === 'ДФО' || toOkrug === 'ДФО') return ESTIMATED_DAYS_BY_ZONE_DISTANCE.far_east;
+  if ((ADJACENT_OKRUGS[fromOkrug] || []).indexOf(toOkrug) !== -1) return ESTIMATED_DAYS_BY_ZONE_DISTANCE.adjacent_okrug;
+  return ESTIMATED_DAYS_BY_ZONE_DISTANCE.cross_country;
+}
+
+function saveActiveShipments() {
+  try { localStorage.setItem(ACTIVE_SHIPMENTS_KEY, JSON.stringify(state.activeShipments)); } catch {}
+}
+function loadActiveShipments() {
+  try { state.activeShipments = JSON.parse(localStorage.getItem(ACTIVE_SHIPMENTS_KEY)) || []; }
+  catch { state.activeShipments = []; }
+}
+
+function addActiveShipment(task) {
+  const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : ('sh_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8));
+  const currentStock = (function() {
+    if (!state.stockRows) return 0;
+    return state.stockRows
+      .filter(s => String(s.nmId) === String(task.nmId) && s.warehouse === task.toWh)
+      .reduce((sum, s) => sum + (s.quantity || 0), 0);
+  })();
+  state.activeShipments.push({
+    id: id,
+    nmId: task.nmId,
+    fromWh: task.fromWh,
+    toWh: task.toWh,
+    qty: task.qty,
+    sizes: Object.assign({}, task.sizes),
+    region: task.region || '',
+    createdAt: Date.now(),
+    status: 'in_transit',
+    stockAtCreation: currentStock,
+    estimatedDays: getEstimatedDays(task.fromWh, task.toWh),
+  });
+  saveActiveShipments();
+}
+
+function removeActiveShipment(id) {
+  state.activeShipments = state.activeShipments.filter(s => s.id !== id);
+  saveActiveShipments();
+}
+
+function isShipmentActive(nmId, fromWh, toWh) {
+  return state.activeShipments.some(s =>
+    s.status === 'in_transit' && String(s.nmId) === String(nmId) && s.fromWh === fromWh && s.toWh === toWh
+  );
+}
+
+/* Глобальный хелпер для API-вызовов вне syncCabinet */
+async function wbApiFetch(url) {
+  var cab = (typeof CabinetManager !== 'undefined') ? CabinetManager.active() : null;
+  var token = cab ? (cab.token || '') : '';
+  var proxy = cab ? (cab.proxy || '') : '';
+  if (!token) return null;
+  var finalUrl = proxy ? proxy + '?url=' + encodeURIComponent(url) : url;
+  var res = await fetch(finalUrl, { headers: { Authorization: token } });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+async function checkShipmentStatuses() {
+  if (!state.activeShipments.length) return;
+  var changed = false;
+  var inTransit = state.activeShipments.filter(function(s) { return s.status === 'in_transit'; });
+  if (!inTransit.length) return;
+
+  // 1) Основная проверка: incomes API
+  var incomes = null;
+  try {
+    var oldest = Math.min.apply(null, inTransit.map(function(s) { return s.createdAt; }));
+    var dateFrom = new Date(oldest).toISOString();
+    var url = 'https://statistics-api.wildberries.ru/api/v1/supplier/incomes?dateFrom=' + encodeURIComponent(dateFrom);
+    incomes = await wbApiFetch(url);
+  } catch { incomes = null; }
+
+  for (var i = 0; i < inTransit.length; i++) {
+    var sh = inTransit[i];
+    var delivered = false;
+
+    // Проверка 1: incomes
+    if (Array.isArray(incomes)) {
+      delivered = incomes.some(function(inc) {
+        return inc.nmId === sh.nmId && inc.warehouseName === sh.toWh && new Date(inc.dateClose || inc.date) >= new Date(sh.createdAt);
+      });
+    }
+
+    // Проверка 2: stock delta
+    if (!delivered && state.stockRows && state.stockRows.length) {
+      var currentStock = state.stockRows
+        .filter(function(sr) { return String(sr.nmId) === String(sh.nmId) && sr.warehouse === sh.toWh; })
+        .reduce(function(sum, sr) { return sum + (sr.quantity || 0); }, 0);
+      var delta = currentStock - (sh.stockAtCreation || 0);
+      if (delta >= sh.qty * 0.80) delivered = true;
+    }
+
+    if (delivered) {
+      sh.status = 'delivered';
+      changed = true;
+    } else if (Date.now() - sh.createdAt > 14 * 86400000) {
+      sh.status = 'stale';
+      changed = true;
+    }
+  }
+  if (changed) saveActiveShipments();
+}
+
+function renderActiveShipments() {
+  var wrap = document.getElementById('redistActiveWrap');
+  var list = document.getElementById('activeShipmentsList');
+  var count = document.getElementById('activeCount');
+  if (!wrap || !list) return;
+
+  var items = state.activeShipments || [];
+  if (!items.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  count.textContent = items.length;
+
+  var statusPill = function(s) {
+    if (s.status === 'delivered') return '<span class="pill pill-delivered">Доставлено</span>';
+    if (s.status === 'stale') return '<span class="pill pill-stale" title="Более 14 дней без подтверждения — проверьте вручную">&gt;14 дн</span>';
+    var days = Math.ceil((Date.now() - s.createdAt) / 86400000);
+    return '<span class="pill pill-transit">В пути ' + days + ' дн</span>';
+  };
+
+  var rows = items.map(function(s) {
+    return '<tr>'
+      + '<td>' + s.nmId + '</td>'
+      + '<td>' + s.fromWh + '</td>'
+      + '<td>' + s.toWh + '</td>'
+      + '<td class="num">' + s.qty + '</td>'
+      + '<td>' + statusPill(s) + ' <span class="est-days">~' + s.estimatedDays + ' дн</span></td>'
+      + '<td><button class="btn-remove-sh" data-id="' + s.id + '" title="Удалить">&times;</button></td>'
+      + '</tr>';
+  }).join('');
+
+  list.innerHTML = '<table class="active-sh-table"><thead><tr>'
+    + '<th>Артикул</th><th>Откуда</th><th>Куда</th><th class="num">Кол-во</th><th>Статус</th><th></th>'
+    + '</tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+function showUndoToast(message, onUndo, duration) {
+  duration = duration || 5000;
+  var el = document.createElement('div');
+  el.className = 'toast-undo';
+  el.innerHTML = '<span>' + message + '</span><button class="toast-undo-btn">Отменить</button><div class="toast-progress"></div>';
+  var cont = document.getElementById('toastContainer');
+  if (!cont) return;
+  cont.appendChild(el);
+  var timer = setTimeout(function() { if (el.parentNode) el.remove(); }, duration);
+  el.querySelector('.toast-undo-btn').onclick = function() { clearTimeout(timer); if (onUndo) onUndo(); if (el.parentNode) el.remove(); };
+}
+
 function runRedistBuild() {
   const stockText = document.getElementById('stockCsv').value;
   const ordersText = document.getElementById('ordersCsv').value;
@@ -2752,6 +2977,46 @@ document.querySelectorAll('.strategy-opt').forEach(btn => {
 
 // Применить сохранённую стратегию сразу при загрузке
 applyStrategyUi();
+
+// Загрузить активные отправки из localStorage (D.2)
+loadActiveShipments();
+renderActiveShipments();
+// Фоновая проверка статусов (не блокирует UI)
+checkShipmentStatuses().then(function() { renderActiveShipments(); }).catch(function() {});
+
+// Аккордеон «В пути» — toggle
+document.addEventListener('click', function(e) {
+  if (e.target && (e.target.id === 'activeShipmentsToggle' || e.target.closest('#activeShipmentsToggle'))) {
+    var body = document.getElementById('activeShipmentsBody');
+    var arrow = document.getElementById('activeArrow');
+    if (!body) return;
+    var open = body.style.display !== 'none';
+    body.style.display = open ? 'none' : '';
+    if (arrow) arrow.classList.toggle('open', !open);
+  }
+  // Удалить отправку
+  if (e.target && e.target.classList.contains('btn-remove-sh')) {
+    var id = e.target.dataset.id;
+    if (id) { removeActiveShipment(id); renderActiveShipments(); }
+  }
+});
+// Обновить статусы
+document.addEventListener('click', function(e) {
+  if (e.target && e.target.id === 'btnRefreshStatuses') {
+    e.target.disabled = true; e.target.textContent = 'Проверяю...';
+    checkShipmentStatuses().then(function() {
+      renderActiveShipments();
+      e.target.disabled = false; e.target.textContent = 'Обновить статусы';
+    }).catch(function() {
+      e.target.disabled = false; e.target.textContent = 'Обновить статусы';
+    });
+  }
+  if (e.target && e.target.id === 'btnClearDelivered') {
+    state.activeShipments = state.activeShipments.filter(function(s) { return s.status === 'in_transit'; });
+    saveActiveShipments();
+    renderActiveShipments();
+  }
+});
 
 // «Выбрать все» чекбокс — делегированный обработчик (элемент пересоздаётся)
 document.addEventListener('change', function(e) {
@@ -5309,5 +5574,6 @@ renderProgress();
 
 })();
 </script>
+<div id="toastContainer" class="toast-container"></div>
 </body>
 </html>
