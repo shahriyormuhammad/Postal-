@@ -43,85 +43,169 @@
     font-family: 'Manrope', -apple-system, system-ui, sans-serif;
     font-size: 14px;
     line-height: 1.55;
-    min-height: 100vh;
     -webkit-font-smoothing: antialiased;
   }
-  .container { max-width: 1280px; margin: 0 auto; padding: 28px 24px 80px; }
+  /* === Layout === */
+  body { margin: 0; display: flex; overflow: hidden; height: 100vh; }
 
-  /* Header */
-  header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding-bottom: 22px; margin-bottom: 22px;
-    flex-wrap: wrap; gap: 16px;
+  /* === Sidebar === */
+  .sidebar {
+    position: fixed; left: 0; top: 0; height: 100vh;
+    width: 60px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    z-index: 30;
+    display: flex; flex-direction: column;
+    transition: width 200ms ease;
+    overflow: hidden;
   }
-  .brand { display: flex; align-items: center; gap: 12px; }
+  .sidebar:hover:not(.pinned) { width: 240px; }
+  .sidebar.pinned { width: 240px; }
+
+  .sidebar-logo {
+    height: 56px; display: flex; align-items: center;
+    padding: 0 14px; gap: 12px; flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+  }
   .brand-mark {
-    width: 42px; height: 42px;
-    border-radius: 11px 11px 11px 3px;
+    width: 32px; height: 32px; min-width: 32px;
+    border-radius: 9px 9px 9px 3px;
     background: var(--accent); color: #fff;
     display: grid; place-items: center;
-    font-weight: 500; font-size: 19px;
+    font-weight: 600; font-size: 15px;
     letter-spacing: -0.02em;
-    position: relative;
+    position: relative; flex-shrink: 0;
   }
   .brand-mark::after {
     content: ''; position: absolute;
-    top: 6px; right: 6px; width: 5px; height: 5px;
+    top: 5px; right: 5px; width: 4px; height: 4px;
     border-radius: 50%; background: #fff; opacity: 0.5;
   }
-  .brand h1 {
-    font-size: 17px; font-weight: 500; letter-spacing: -0.01em; color: var(--text);
+  .brand-text {
+    font-size: 17px; font-weight: 600; white-space: nowrap;
+    color: var(--text); letter-spacing: -0.01em;
   }
-  .brand .sub { font-size: 12px; color: var(--text-dim); margin-top: 1px; }
+
+  .sidebar-nav {
+    flex: 1; overflow-y: auto; padding: 8px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .sidebar-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; border: none; background: none;
+    border-radius: var(--radius-sm); cursor: pointer;
+    color: var(--text-dim); font-family: inherit;
+    font-size: 13px; font-weight: 500; white-space: nowrap;
+    transition: background 150ms, color 150ms;
+    width: 100%; text-align: left;
+  }
+  .sidebar-item svg {
+    width: 20px; height: 20px; min-width: 20px;
+    stroke: currentColor; fill: none;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  }
+  .sidebar-item:hover { background: var(--surface-2); color: var(--text); }
+  .sidebar-item.active { background: var(--accent-soft); color: var(--accent); }
+
+  .sidebar-label {
+    opacity: 0; transition: opacity 150ms; overflow: hidden;
+  }
+  .sidebar:hover .sidebar-label,
+  .sidebar.pinned .sidebar-label { opacity: 1; }
+
+  .sidebar-footer {
+    padding: 8px; border-top: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .sidebar-footer-btn {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; border: none; background: none;
+    border-radius: var(--radius-sm); cursor: pointer;
+    color: var(--text-dim); font-family: inherit;
+    font-size: 13px; width: 100%; text-align: left;
+    transition: background 150ms;
+  }
+  .sidebar-footer-btn:hover { background: var(--surface-2); }
+
+  /* === Main wrapper === */
+  .main-wrapper {
+    margin-left: 60px;
+    width: calc(100vw - 60px);
+    display: flex; flex-direction: column;
+    height: 100vh;
+    transition: margin-left 200ms ease, width 200ms ease;
+  }
+  .sidebar.pinned ~ .main-wrapper {
+    margin-left: 240px; width: calc(100vw - 240px);
+  }
+
+  /* === Topbar === */
+  .topbar {
+    height: 56px; display: flex; align-items: center;
+    padding: 0 24px; gap: 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky; top: 0; z-index: 20; flex-shrink: 0;
+  }
+  h2.topbar-title {
+    font-size: 16px; font-weight: 600; margin: 0;
+    white-space: nowrap; color: var(--text);
+  }
+  .topbar-right {
+    margin-left: auto; display: flex; align-items: center; gap: 12px;
+  }
+  .topbar-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--accent-soft); color: var(--accent);
+    display: grid; place-items: center;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .sidebar-burger {
+    display: none;
+    border: none; background: none; cursor: pointer;
+    color: var(--text); padding: 4px;
+    align-items: center; justify-content: center;
+  }
+
+  /* === Content === */
+  .content {
+    flex: 1; overflow-y: auto;
+    padding: 24px 32px;
+    background: var(--bg);
+  }
+
+  /* === Sidebar overlay (mobile) === */
+  .sidebar-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4); z-index: 29;
+  }
+  .sidebar-overlay.visible { display: block; }
+
+  /* === Responsive layout === */
+  @media (max-width: 767px) {
+    .sidebar {
+      transform: translateX(-100%);
+      position: fixed; width: 240px;
+    }
+    .sidebar.mobile-open { transform: translateX(0); }
+    .sidebar.mobile-open .sidebar-label { opacity: 1; }
+    .main-wrapper { margin-left: 0 !important; width: 100vw !important; }
+    .sidebar-burger { display: flex; }
+    .content { padding: 16px; }
+  }
+  @media (min-width: 768px) and (max-width: 1199px) {
+    .sidebar { width: 60px; }
+    .sidebar:hover { width: 240px; }
+    #sidebarPin { display: none; }
+  }
+
+  /* Mode badge */
   .mode-badge {
     padding: 7px 14px; background: var(--surface); border: 0.5px solid var(--border);
     border-radius: 100px; font-size: 12px; color: var(--text-dim); font-weight: 500;
   }
   .mode-badge.live { color: var(--ok); background: var(--ok-soft); border-color: var(--ok-border); }
   .mode-badge.demo { color: var(--warn); background: var(--warn-soft); border-color: var(--warn-border); }
-
-  /* Tabs */
-  .tabs-wrap {
-    position: relative; margin-bottom: 22px;
-  }
-  .tabs {
-    display: flex; gap: 4px; background: var(--surface); border: 0.5px solid var(--border);
-    border-radius: 12px; padding: 4px;
-    overflow-x: auto; scrollbar-width: none;
-    -webkit-overflow-scrolling: touch; scroll-behavior: smooth;
-  }
-  .tabs::-webkit-scrollbar { display: none; }
-  .tab {
-    padding: 10px 16px; background: transparent; border: none;
-    color: var(--text-dim); font-family: inherit;
-    font-size: 13px; font-weight: 500; cursor: pointer;
-    border-radius: 8px; white-space: nowrap; flex-shrink: 0;
-    transition: background 0.15s, color 0.15s;
-  }
-  .tab:hover { color: var(--text); background: var(--surface-3); }
-  .tab.active { color: var(--accent); background: var(--accent-soft); }
-
-  /* Tabs scroll arrow buttons */
-  .tabs-scroll {
-    position: absolute; top: 50%; transform: translateY(-50%);
-    width: 30px; height: 30px; border-radius: 50%;
-    background: var(--surface); border: 0.5px solid var(--border);
-    cursor: pointer; z-index: 5; padding: 0;
-    display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 2px 10px rgba(20, 30, 60, 0.08);
-    transition: background 0.15s, opacity 0.2s, transform 0.15s;
-  }
-  .tabs-scroll:hover { background: var(--surface-3); }
-  .tabs-scroll:active { transform: translateY(-50%) scale(0.94); }
-  .tabs-scroll.left { left: 4px; }
-  .tabs-scroll.right { right: 4px; }
-  .tabs-scroll.hidden { opacity: 0; pointer-events: none; }
-  .tabs-scroll::before {
-    content: ''; width: 7px; height: 7px;
-    border-top: 1.5px solid var(--text); border-right: 1.5px solid var(--text);
-  }
-  .tabs-scroll.left::before { transform: rotate(-135deg); margin-left: 2px; }
-  .tabs-scroll.right::before { transform: rotate(45deg); margin-right: 2px; }
 
   /* Panels */
   .panel { display: none; animation: fadein 0.2s ease; }
@@ -530,10 +614,6 @@
   .muted { color: var(--text-dim); font-size: 13px; }
   .hidden { display: none !important; }
 
-  footer {
-    margin-top: 50px; padding-top: 20px; border-top: 0.5px solid var(--border);
-    color: var(--text-dim); font-size: 12px; text-align: center;
-  }
   .progress-bar {
     height: 6px; background: var(--surface-3); border-radius: 100px; overflow: hidden;
     margin-top: 6px;
@@ -632,43 +712,87 @@
 </style>
 </head>
 <body>
-<div class="container">
 
-<header>
-  <div class="brand">
+<!-- Sidebar overlay (mobile) -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
     <div class="brand-mark">P</div>
-    <div>
-      <h1>Postal</h1>
-      <div class="sub">Ближайший склад каждому заказу</div>
-    </div>
+    <span class="sidebar-label brand-text">Postal</span>
   </div>
-  <div style="display:flex;gap:10px;align-items:center">
-    <div class="cab-switcher" id="cabSwitcher">
-      <button class="cab-btn" id="cabBtn">
-        <span class="cab-dot"></span>
-        <span id="cabName">Основной</span>
-        <span class="caret"></span>
-      </button>
-      <div class="cab-menu hidden" id="cabMenu"></div>
-    </div>
-    <div class="mode-badge demo" id="modeBadge">режим: demo</div>
-  </div>
-</header>
 
-<div class="tabs-wrap">
-  <button class="tabs-scroll left hidden" id="tabsScrollLeft" aria-label="Прокрутить влево"></button>
-  <nav class="tabs" id="tabsNav">
-    <button class="tab active" data-tab="setup">Настройка</button>
-    <button class="tab" data-tab="diag">Диагностика</button>
-    <button class="tab" data-tab="details">Детали по размерам</button>
-    <button class="tab" data-tab="plan">Поставка</button>
-    <button class="tab" data-tab="progress">Прогресс</button>
-    <button class="tab" data-tab="redist">Перераспределение</button>
-    <button class="tab" data-tab="econ">Экономика</button>
-    <button class="tab" data-tab="help">Справка</button>
+  <nav class="sidebar-nav" id="sidebarNav">
+    <button class="sidebar-item active" data-tab="setup">
+      <svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      <span class="sidebar-label">Настройка</span>
+    </button>
+    <button class="sidebar-item" data-tab="diag">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <span class="sidebar-label">Диагностика</span>
+    </button>
+    <button class="sidebar-item" data-tab="details">
+      <svg viewBox="0 0 24 24"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></svg>
+      <span class="sidebar-label">Детали по размерам</span>
+    </button>
+    <button class="sidebar-item" data-tab="plan">
+      <svg viewBox="0 0 24 24"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+      <span class="sidebar-label">Поставка</span>
+    </button>
+    <button class="sidebar-item" data-tab="progress">
+      <svg viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+      <span class="sidebar-label">Прогресс</span>
+    </button>
+    <button class="sidebar-item" data-tab="redist">
+      <svg viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+      <span class="sidebar-label">Перераспределение</span>
+    </button>
+    <button class="sidebar-item" data-tab="econ">
+      <svg viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+      <span class="sidebar-label">Экономика</span>
+    </button>
+    <button class="sidebar-item" data-tab="help">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span class="sidebar-label">Справка</span>
+    </button>
   </nav>
-  <button class="tabs-scroll right hidden" id="tabsScrollRight" aria-label="Прокрутить вправо"></button>
-</div>
+
+  <div class="sidebar-footer">
+    <button class="sidebar-footer-btn" id="themeToggle" title="Переключить тему">
+      <span class="theme-icon" style="font-size:16px;min-width:20px;text-align:center">🌙</span>
+      <span class="sidebar-label">Тема</span>
+    </button>
+    <button class="sidebar-footer-btn" id="sidebarPin" title="Закрепить боковую панель">
+      <span class="pin-icon" style="font-size:16px;min-width:20px;text-align:center">📌</span>
+      <span class="sidebar-label">Закрепить</span>
+    </button>
+  </div>
+</aside>
+
+<div class="main-wrapper" id="mainWrapper">
+  <header class="topbar" id="topbar">
+    <button class="sidebar-burger" id="sidebarBurger" aria-label="Открыть меню">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+    <h2 class="topbar-title" id="topbarTitle">Настройка</h2>
+    <div class="topbar-right">
+      <div class="mode-badge demo" id="modeBadge">режим: demo</div>
+      <div class="cab-switcher" id="cabSwitcher">
+        <button class="cab-btn" id="cabBtn">
+          <span class="cab-dot"></span>
+          <span id="cabName">Основной</span>
+          <span class="caret"></span>
+        </button>
+        <div class="cab-menu hidden" id="cabMenu"></div>
+      </div>
+      <div class="topbar-profile" id="topbarProfile">
+        <div class="topbar-avatar" id="topbarAvatar">S</div>
+      </div>
+    </div>
+  </header>
+  <main class="content" id="mainContent">
 
 <!-- ========== SETUP ========== -->
 <section class="panel active" id="panel-setup">
@@ -1178,10 +1302,7 @@ C-340,4,132,12,46.21"></textarea>
   </div>
 </section>
 
-<footer>
-  Postal · одностраничное приложение · данные не покидают браузер · <span id="ver">v2.4 · единая синхронизация</span>
-</footer>
-
+  </main>
 </div>
 
 <script>
@@ -1785,52 +1906,59 @@ const state = {
 };
 
 /* =========================================================
-   ТАБЫ
+   SIDEBAR NAVIGATION
    ========================================================= */
-document.querySelectorAll('.tab').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+document.querySelectorAll('.sidebar-item').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.sidebar-item').forEach(function(b) { b.classList.remove('active'); });
+    document.querySelectorAll('.panel').forEach(function(p) { p.classList.remove('active'); });
     btn.classList.add('active');
-    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
-    // Автоматически прокрутить вкладку к центру, если она обрезана
-    btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    var panelId = 'panel-' + btn.dataset.tab;
+    var panel = document.getElementById(panelId);
+    if (panel) panel.classList.add('active');
+    // Обновить заголовок topbar
+    var title = document.getElementById('topbarTitle');
+    var label = btn.querySelector('.sidebar-label');
+    if (title && label) title.textContent = label.textContent;
     // Перерисовать KPI при входе на вкладку «Перераспределение»
-    if (btn.dataset.tab === 'redist' && typeof renderRedistKpi === 'function') {
-      renderRedistKpi();
-    }
+    if (btn.dataset.tab === 'redist' && typeof renderRedistKpi === 'function') renderRedistKpi();
+    // На мобильном — закрыть sidebar
+    var sb = document.getElementById('sidebar');
+    if (sb) sb.classList.remove('mobile-open');
+    var ov = document.getElementById('sidebarOverlay');
+    if (ov) ov.classList.remove('visible');
   });
 });
 
-// Логика стрелок прокрутки вкладок
-(function initTabsScroll() {
-  const nav = document.getElementById('tabsNav');
-  const left = document.getElementById('tabsScrollLeft');
-  const right = document.getElementById('tabsScrollRight');
-  if (!nav || !left || !right) return;
+/* Sidebar pin (localStorage) */
+(function() {
+  var SIDEBAR_PIN_KEY = 'postal_sidebar_pinned';
+  var sidebar = document.getElementById('sidebar');
+  var pinBtn = document.getElementById('sidebarPin');
+  if (!sidebar || !pinBtn) return;
+  if (localStorage.getItem(SIDEBAR_PIN_KEY) === '1') {
+    sidebar.classList.add('pinned');
+  }
+  pinBtn.addEventListener('click', function() {
+    sidebar.classList.toggle('pinned');
+    try { localStorage.setItem(SIDEBAR_PIN_KEY, sidebar.classList.contains('pinned') ? '1' : '0'); } catch(e) {}
+  });
+})();
 
-  function update() {
-    const max = nav.scrollWidth - nav.clientWidth;
-    const pos = nav.scrollLeft;
-    left.classList.toggle('hidden', pos <= 2);
-    right.classList.toggle('hidden', pos >= max - 2);
-  }
-  function scrollBy(delta) {
-    nav.scrollBy({ left: delta, behavior: 'smooth' });
-  }
-  left.addEventListener('click', () => scrollBy(-220));
-  right.addEventListener('click', () => scrollBy(220));
-  nav.addEventListener('scroll', update, { passive: true });
-  window.addEventListener('resize', update);
-  // Колёсико мыши → горизонтальный скролл
-  nav.addEventListener('wheel', (e) => {
-    if (Math.abs(e.deltaX) < Math.abs(e.deltaY)) {
-      e.preventDefault();
-      nav.scrollLeft += e.deltaY;
-    }
-  }, { passive: false });
-  setTimeout(update, 50);
-  setTimeout(update, 300);
+/* Mobile sidebar toggle */
+(function() {
+  var burger = document.getElementById('sidebarBurger');
+  var sidebar = document.getElementById('sidebar');
+  var overlay = document.getElementById('sidebarOverlay');
+  if (!burger || !sidebar) return;
+  burger.addEventListener('click', function() {
+    sidebar.classList.toggle('mobile-open');
+    if (overlay) overlay.classList.toggle('visible');
+  });
+  if (overlay) overlay.addEventListener('click', function() {
+    sidebar.classList.remove('mobile-open');
+    overlay.classList.remove('visible');
+  });
 })();
 
 /* ---- Суб-табы «Поставка» ---- */
