@@ -338,6 +338,29 @@
   .toast-undo-btn { background:none; border:none; color:var(--accent);
     cursor:pointer; font-weight:600; font-size:13px; white-space:nowrap; }
 
+  /* Sticky bottom bar (D.3) */
+  .redist-bottom-bar {
+    position:sticky; bottom:0; left:0; right:0;
+    background:var(--surface); border-top:1px solid var(--border);
+    padding:10px 20px; display:flex; align-items:center;
+    justify-content:space-between; z-index:20;
+    box-shadow:0 -4px 12px rgba(20,30,60,0.08);
+  }
+  .bottom-bar-info { display:flex; gap:8px; align-items:center; font-size:13px; }
+  .bottom-bar-sep { color:var(--text-dim); }
+  .bottom-bar-actions { display:flex; gap:8px; }
+
+  /* Selection badge (D.3) */
+  .kpi-selection-badge {
+    display:inline-flex; align-items:center; gap:8px;
+    padding:4px 12px; border-radius:20px; font-size:12px;
+    background:rgba(99,102,241,0.10); color:var(--accent);
+    margin-bottom:8px;
+  }
+  .kpi-sel-reset { background:none; border:none; color:var(--accent);
+    cursor:pointer; font-size:12px; font-weight:600; opacity:0.8; }
+  .kpi-sel-reset:hover { opacity:1; }
+
   /* Чекбокс строки */
   .redist-chk, #redistChkAll {
     width: 15px; height: 15px; cursor: pointer;
@@ -924,6 +947,12 @@ C-340,4,132,12,46.21"></textarea>
   <h2>Перераспределение</h2>
   <p class="lead">Ежедневная планёрка. Загружаешь остатки и заказы за прошлую неделю — получаешь готовые заявки: какой товар, каких размеров, с какого склада и на какой везти. Прогноз = прошлая неделя × (1 + рост%).</p>
 
+  <!-- Бейдж «Показано по выбранным» (D.3) -->
+  <div id="kpiSelectionBadge" class="kpi-selection-badge" style="display:none">
+    <span>Показано по выбранным (<span id="kpiSelCount">0</span>)</span>
+    <button class="kpi-sel-reset" id="btnKpiResetSel" type="button" title="Сбросить выделение">&times; Сбросить</button>
+  </div>
+
   <!-- KPI-блок -->
   <div class="kpi-grid" id="redistKpi">
     <!-- Карточка 1: текущий ИЛ -->
@@ -1002,18 +1031,21 @@ C-340,4,132,12,46.21"></textarea>
       </div>
     </div>
 
-    <label style="margin-top:18px">① Остатки по складам (CSV: <code>nmId,warehouse,size,qty</code>)</label>
-    <textarea id="stockCsv" placeholder="nmId,warehouse,size,qty
+    <details style="margin-top:18px">
+      <summary style="cursor:pointer;font-weight:500;font-size:13px;color:var(--text-dim)">CSV-данные (остатки + заказы)</summary>
+      <label style="margin-top:12px;display:block">① Остатки по складам (CSV: <code>nmId,warehouse,size,qty</code>)</label>
+      <textarea id="stockCsv" placeholder="nmId,warehouse,size,qty
 18475621,Коледино,40,45
 18475621,Коледино,41,52
 18475621,Казань,40,3
 ..."></textarea>
 
-    <label style="margin-top:18px">② Заказы за прошлую неделю (CSV: <code>nmId,region,orders</code>)</label>
-    <textarea id="ordersCsv" placeholder="nmId,region,orders
+      <label style="margin-top:18px;display:block">② Заказы за прошлую неделю (CSV: <code>nmId,region,orders</code>)</label>
+      <textarea id="ordersCsv" placeholder="nmId,region,orders
 18475621,Приволжский,15
 18475621,Сибирский,18
 ..."></textarea>
+    </details>
 
     <div class="btn-row" style="margin-top:18px">
       <button class="btn" id="btnRedist">Построить заявки</button>
@@ -1046,6 +1078,21 @@ C-340,4,132,12,46.21"></textarea>
   </div>
 
   <div id="redistResult"></div>
+
+  <!-- Sticky bottom bar (D.3) -->
+  <div id="redistBottomBar" class="redist-bottom-bar" style="display:none">
+    <div class="bottom-bar-info">
+      <span id="bbCount">0 заявок</span>
+      <span class="bottom-bar-sep">&middot;</span>
+      <span id="bbUnits">0 шт.</span>
+      <span class="bottom-bar-sep">&middot;</span>
+      <span id="bbSavings">~0 ₽/нед</span>
+    </div>
+    <div class="bottom-bar-actions">
+      <button class="btn ghost" id="btnRejectSelected" type="button" style="font-size:12px">Отклонить выбранные</button>
+      <button class="btn" id="btnCreateSupply" type="button" style="font-size:12px">Создать поставку</button>
+    </div>
+  </div>
 </section>
 
 <!-- ========== ECONOMY ========== -->
@@ -1561,12 +1608,17 @@ function animateKpi(el, to, opts) {
 /* ---- Главный рендер KPI-блока ---- */
 let redistKpiHorizon = 13;
 
-function renderRedistKpi() {
+function renderRedistKpi(opts) {
+  opts = opts || {};
   const wrap = document.getElementById('redistKpi');
   if (!wrap) return;
   const articles = (typeof state !== 'undefined' && state && state.articles) ? state.articles : [];
   const last = window.__lastRedist;
-  const tasks = (last && last.tasks) ? last.tasks : [];
+  const allTasks = (last && last.tasks) ? last.tasks : [];
+  // D.3: фильтр по выделению
+  const tasks = opts.filterIndices && opts.filterIndices.size > 0
+    ? allTasks.filter(function(_, i) { return opts.filterIndices.has(i); })
+    : allTasks;
 
   const cur = computeCabinetKpi(articles);
   const fullForecast = computeForecastKpi(articles, tasks);
@@ -2656,6 +2708,9 @@ function renderRedistTasks(result) {
 
   // сохраняем последний результат для экспорта
   window.__lastRedist = result;
+  // D.3: сбрасываем выделение при новом построении
+  window.__redistSelection = new Set();
+  onSelectionChange();
 }
 
 /* ---- DEMO данные ---- */
@@ -2890,12 +2945,15 @@ function showUndoToast(message, onUndo, duration) {
   duration = duration || 5000;
   var el = document.createElement('div');
   el.className = 'toast-undo';
-  el.innerHTML = '<span>' + message + '</span><button class="toast-undo-btn">Отменить</button><div class="toast-progress"></div>';
+  el.innerHTML = '<span>' + message + '</span>'
+    + (onUndo ? '<button class="toast-undo-btn">Отменить</button>' : '')
+    + '<div class="toast-progress"></div>';
   var cont = document.getElementById('toastContainer');
   if (!cont) return;
   cont.appendChild(el);
   var timer = setTimeout(function() { if (el.parentNode) el.remove(); }, duration);
-  el.querySelector('.toast-undo-btn').onclick = function() { clearTimeout(timer); if (onUndo) onUndo(); if (el.parentNode) el.remove(); };
+  var undoBtn = el.querySelector('.toast-undo-btn');
+  if (undoBtn) undoBtn.onclick = function() { clearTimeout(timer); onUndo(); if (el.parentNode) el.remove(); };
 }
 
 function runRedistBuild() {
@@ -3018,11 +3076,143 @@ document.addEventListener('click', function(e) {
   }
 });
 
-// «Выбрать все» чекбокс — делегированный обработчик (элемент пересоздаётся)
+// D.3: Selection state
+window.__redistSelection = new Set();
+
+function onSelectionChange() {
+  var sel = window.__redistSelection;
+  var tasks = (window.__lastRedist && window.__lastRedist.tasks) ? window.__lastRedist.tasks : [];
+  var bar = document.getElementById('redistBottomBar');
+  var badge = document.getElementById('kpiSelectionBadge');
+  var selCount = document.getElementById('kpiSelCount');
+  var chkAll = document.getElementById('redistChkAll');
+
+  if (bar) bar.style.display = sel.size > 0 ? '' : 'none';
+  if (badge) badge.style.display = sel.size > 0 ? '' : 'none';
+  if (selCount) selCount.textContent = sel.size;
+
+  // Update «select all» checkbox state
+  if (chkAll) {
+    var totalChks = document.querySelectorAll('.redist-chk').length;
+    chkAll.checked = totalChks > 0 && sel.size === totalChks;
+    chkAll.indeterminate = sel.size > 0 && sel.size < totalChks;
+  }
+
+  // Update bottom bar info
+  if (sel.size > 0) {
+    var selectedTasks = [];
+    sel.forEach(function(i) { if (tasks[i]) selectedTasks.push(tasks[i]); });
+    var units = selectedTasks.reduce(function(s, t) { return s + t.qty; }, 0);
+    var totalSavings = 0;
+    selectedTasks.forEach(function(t) {
+      var kpi = computeTaskKpi(t);
+      totalSavings += kpi.savingsPerWeek;
+    });
+    var bbCount = document.getElementById('bbCount');
+    var bbUnits = document.getElementById('bbUnits');
+    var bbSavings = document.getElementById('bbSavings');
+    if (bbCount) bbCount.textContent = sel.size + ' заявок';
+    if (bbUnits) bbUnits.textContent = units + ' шт.';
+    if (bbSavings) bbSavings.textContent = '~' + Math.round(totalSavings).toLocaleString('ru-RU') + ' ₽/нед';
+  }
+
+  // D.3: Recalculate KPI by selection
+  renderRedistKpi(sel.size > 0 ? { filterIndices: sel } : {});
+}
+
+// Чекбоксы — делегированный обработчик (элемент пересоздаётся)
 document.addEventListener('change', function(e) {
   if (e.target && e.target.id === 'redistChkAll') {
-    const checked = e.target.checked;
-    document.querySelectorAll('.redist-chk').forEach(c => { c.checked = checked; });
+    var checked = e.target.checked;
+    var tasks = (window.__lastRedist && window.__lastRedist.tasks) ? window.__lastRedist.tasks : [];
+    document.querySelectorAll('.redist-chk').forEach(function(c) { c.checked = checked; });
+    window.__redistSelection = checked ? new Set(tasks.map(function(_, i) { return i; })) : new Set();
+    onSelectionChange();
+  }
+  if (e.target && e.target.classList.contains('redist-chk')) {
+    var idx = Number(e.target.dataset.idx);
+    if (e.target.checked) window.__redistSelection.add(idx);
+    else window.__redistSelection.delete(idx);
+    onSelectionChange();
+  }
+});
+
+// D.3: Reset selection badge
+document.addEventListener('click', function(e) {
+  if (e.target && (e.target.id === 'btnKpiResetSel' || e.target.closest('#btnKpiResetSel'))) {
+    document.querySelectorAll('.redist-chk').forEach(function(c) { c.checked = false; });
+    var chkAll = document.getElementById('redistChkAll');
+    if (chkAll) { chkAll.checked = false; chkAll.indeterminate = false; }
+    window.__redistSelection = new Set();
+    onSelectionChange();
+  }
+});
+
+// D.3: Создать поставку из выбранных
+document.addEventListener('click', function(e) {
+  if (e.target && (e.target.id === 'btnCreateSupply' || e.target.closest('#btnCreateSupply'))) {
+    var sel = window.__redistSelection;
+    var tasks = (window.__lastRedist && window.__lastRedist.tasks) ? window.__lastRedist.tasks : [];
+    if (!sel.size) { alert('Сначала выберите заявки'); return; }
+
+    var selectedTasks = [];
+    sel.forEach(function(i) { if (tasks[i]) selectedTasks.push(tasks[i]); });
+    if (!selectedTasks.length) return;
+
+    // Добавить в активные отправки
+    selectedTasks.forEach(function(t) { addActiveShipment(t); });
+
+    // XLSX экспорт
+    if (typeof XLSX !== 'undefined') {
+      var aoa = [['nmId', 'Откуда', 'Куда', 'Регион', 'Кол-во', 'Размеры', 'Стратегия']];
+      selectedTasks.forEach(function(t) {
+        var sizes = Object.entries(t.sizes).map(function(e) { return e[0] + ':' + e[1]; }).join('|');
+        aoa.push([t.nmId, t.fromWh, t.toWh, t.region, t.qty, sizes, t.strategy || '']);
+      });
+      var ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws['!cols'] = [{wch:14},{wch:20},{wch:20},{wch:18},{wch:8},{wch:30},{wch:10}];
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Перераспределение');
+      var d = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(wb, 'redistribution-' + d + '.xlsx');
+    }
+
+    // Удалить принятые из tasks (обратный порядок для splice)
+    var indices = Array.from(sel).sort(function(a, b) { return b - a; });
+    indices.forEach(function(i) { tasks.splice(i, 1); });
+    window.__redistSelection = new Set();
+
+    // Re-render
+    renderRedistTasks(window.__lastRedist);
+    renderActiveShipments();
+    showUndoToast('Создано ' + selectedTasks.length + ' отправок, файл скачан', null, 4000);
+  }
+});
+
+// D.3: Отклонить выбранные
+document.addEventListener('click', function(e) {
+  if (e.target && (e.target.id === 'btnRejectSelected' || e.target.closest('#btnRejectSelected'))) {
+    var sel = window.__redistSelection;
+    var tasks = (window.__lastRedist && window.__lastRedist.tasks) ? window.__lastRedist.tasks : [];
+    if (!sel.size) return;
+
+    // Сохраняем удалённые для undo
+    var removed = [];
+    var indices = Array.from(sel).sort(function(a, b) { return b - a; });
+    indices.forEach(function(i) {
+      if (tasks[i]) removed.push({ idx: i, task: tasks[i] });
+      tasks.splice(i, 1);
+    });
+    window.__redistSelection = new Set();
+
+    renderRedistTasks(window.__lastRedist);
+    showUndoToast('Отклонено ' + removed.length + ' заявок', function() {
+      // Undo: вернуть задачи обратно
+      removed.reverse().forEach(function(r) {
+        tasks.splice(r.idx, 0, r.task);
+      });
+      renderRedistTasks(window.__lastRedist);
+    });
   }
 });
 
