@@ -33,10 +33,53 @@
     --ok: #1e6b3e;
     --ok-soft: #e8f3ec;
     --ok-border: #c6e4d0;
+    --sidebar-bg: #ffffff;
+    --topbar-bg: #ffffff;
+    --table-row-alt: #fafafa;
     --radius: 10px;
     --radius-lg: 12px;
     --radius-sm: 6px;
     --shadow: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-lg: 0 4px 14px rgba(0,0,0,0.08);
+    --toast-bar: rgba(0,0,0,0.06);
+  }
+
+  html.dark {
+    --bg: #0A0B14;
+    --surface: #14152A;
+    --surface-2: #1E1F3A;
+    --surface-3: #252745;
+    --border: rgba(255,255,255,0.08);
+    --border-2: rgba(255,255,255,0.14);
+    --text: #E5E7EB;
+    --text-dim: #9CA3AF;
+    --text-soft: #6B7280;
+    --accent: #818CF8;
+    --accent-2: #6366F1;
+    --accent-soft: rgba(129,140,248,0.12);
+    --accent-border: rgba(129,140,248,0.25);
+    --danger: #F87171;
+    --danger-soft: rgba(248,113,113,0.12);
+    --danger-border: rgba(248,113,113,0.25);
+    --warn: #FBBF24;
+    --warn-soft: rgba(251,191,36,0.12);
+    --warn-border: rgba(251,191,36,0.25);
+    --ok: #34D399;
+    --ok-soft: rgba(52,211,153,0.12);
+    --ok-border: rgba(52,211,153,0.25);
+    --sidebar-bg: #0D0E18;
+    --topbar-bg: #14152A;
+    --table-row-alt: #1A1B35;
+    --shadow: 0 1px 3px rgba(0,0,0,0.3);
+    --shadow-lg: 0 4px 14px rgba(0,0,0,0.4);
+    --toast-bar: rgba(0,0,0,0.4);
+  }
+
+  /* Transitions for theme switching */
+  html, body, .sidebar, .topbar, .content, .card, .widget-card,
+  .kpi-card, input, textarea, select, button, .mode-badge,
+  .cab-btn, .cab-menu, .pill, .strategy-switch, .strategy-opt {
+    transition: background-color 200ms, color 200ms, border-color 200ms, box-shadow 200ms;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
@@ -54,11 +97,11 @@
   .sidebar {
     position: fixed; left: 0; top: 0; height: 100vh;
     width: 60px;
-    background: var(--surface);
+    background: var(--sidebar-bg);
     border-right: 1px solid var(--border);
     z-index: 30;
     display: flex; flex-direction: column;
-    transition: width 200ms ease;
+    transition: width 200ms ease, background-color 200ms;
     overflow: hidden;
   }
   .sidebar:hover:not(.pinned) { width: 240px; }
@@ -146,7 +189,7 @@
     height: 56px; display: flex; align-items: center;
     padding: 0 24px; gap: 16px;
     border-bottom: 1px solid var(--border);
-    background: var(--surface);
+    background: var(--topbar-bg);
     position: sticky; top: 0; z-index: 20; flex-shrink: 0;
   }
   h2.topbar-title {
@@ -398,7 +441,7 @@
   .toast-undo { background:var(--surface-2); border:1px solid var(--border);
     border-radius:var(--radius); padding:10px 16px; font-size:13px;
     display:flex; align-items:center; gap:12px;
-    box-shadow:0 4px 14px rgba(0,0,0,0.12); position:relative; overflow:hidden; }
+    box-shadow:var(--shadow-lg); position:relative; overflow:hidden; }
   .toast-progress { position:absolute; bottom:0; left:0; height:3px;
     background:var(--accent); animation:toastCountdown 5s linear forwards; }
   @keyframes toastCountdown { from { width:100%; } to { width:0; } }
@@ -411,7 +454,7 @@
     background:var(--surface); border-top:1px solid var(--border);
     padding:8px 20px; display:flex; align-items:center;
     justify-content:space-between; z-index:20;
-    box-shadow:0 -4px 12px rgba(0,0,0,0.06);
+    box-shadow:0 -4px 12px var(--toast-bar);
     height:48px;
   }
   .bottom-bar-info { display:flex; gap:8px; align-items:center; font-size:13px; }
@@ -555,20 +598,23 @@
   }
   .okrug-legend {
     display: grid; grid-template-columns: 1fr 1fr;
-    gap: 4px 8px; margin-top: 12px; font-size: 12px;
+    gap: 4px 8px; margin-top: 12px; font-size: 11px;
   }
   .okrug-legend-item {
-    display: flex; align-items: center; gap: 6px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    display: flex; align-items: center; gap: 5px;
+    min-width: 0;
   }
   .okrug-legend-dot {
     width: 8px; height: 8px; border-radius: 50%;
     flex-shrink: 0;
   }
-  .okrug-legend-name { color: var(--text); flex-shrink: 0; }
+  .okrug-legend-name {
+    color: var(--text); flex-shrink: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
   .okrug-legend-qty {
     color: var(--text-dim); font-family: 'JetBrains Mono', monospace;
-    font-size: 11px; margin-left: auto;
+    font-size: 10px; margin-left: auto; flex-shrink: 0;
   }
 
   /* Widget: Countdown + progress */
@@ -713,7 +759,7 @@
     padding: 10px 8px; border-bottom: 0.5px solid var(--surface-3);
     color: var(--text); vertical-align: middle;
   }
-  tbody tr:nth-child(even) { background: var(--surface-2); }
+  tbody tr:nth-child(even) { background: var(--table-row-alt); }
   tbody tr:hover { background: var(--surface-3); }
   .num { text-align: right; font-variant-numeric: tabular-nums; }
 
@@ -814,7 +860,7 @@
     min-width: 260px; background: var(--surface);
     border: 0.5px solid var(--border); border-radius: var(--radius-lg);
     padding: 6px; z-index: 100;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--shadow-lg);
   }
   .cab-menu.hidden { display: none; }
   .cab-menu-label {
@@ -2169,6 +2215,35 @@ document.querySelectorAll('.sidebar-item').forEach(function(btn) {
   });
 })();
 
+/* Theme toggle (light / dark) */
+function applyTheme(theme) {
+  document.documentElement.classList.toggle('dark', theme === 'dark');
+  var btn = document.getElementById('themeToggle');
+  if (btn) {
+    var icon = btn.querySelector('.theme-icon');
+    if (icon) icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+    var label = btn.querySelector('.sidebar-label');
+    if (label) label.textContent = theme === 'dark' ? 'Светлая' : 'Тёмная';
+  }
+  try { localStorage.setItem('postal_theme', theme); } catch(e) {}
+  // Пересоздать Chart.js с новыми цветами (transition 200ms, потом перерисовка)
+  setTimeout(function() {
+    if (chartIlTrendInstance) { chartIlTrendInstance.destroy(); chartIlTrendInstance = null; }
+    if (chartStockByOkrugInstance) { chartStockByOkrugInstance.destroy(); chartStockByOkrugInstance = null; }
+    if (typeof renderAllWidgets === 'function') renderAllWidgets();
+  }, 220);
+}
+(function() {
+  var saved = null;
+  try { saved = localStorage.getItem('postal_theme'); } catch(e) {}
+  applyTheme(saved === 'dark' ? 'dark' : 'light');
+  var btn = document.getElementById('themeToggle');
+  if (btn) btn.addEventListener('click', function() {
+    var next = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
+    applyTheme(next);
+  });
+})();
+
 /* Mobile sidebar toggle */
 (function() {
   var burger = document.getElementById('sidebarBurger');
@@ -2946,6 +3021,22 @@ function computeTaskKpi(task) {
 var chartIlTrendInstance = null;
 var chartStockByOkrugInstance = null;
 
+// Хелпер для конвертации hex/rgb цвета в rgba с заданной альфой
+function hexToRgba(color, alpha) {
+  color = (color || '').trim();
+  if (color.startsWith('#')) {
+    var h = color.slice(1);
+    if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    var r = parseInt(h.slice(0,2), 16), g = parseInt(h.slice(2,4), 16), b = parseInt(h.slice(4,6), 16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+  }
+  if (color.startsWith('rgb')) {
+    var m = color.match(/\d+/g);
+    if (m && m.length >= 3) return 'rgba(' + m[0] + ',' + m[1] + ',' + m[2] + ',' + alpha + ')';
+  }
+  return color;
+}
+
 function computeCurrentIl() {
   if (typeof state === 'undefined' || !Array.isArray(state.articles) || state.articles.length === 0) return null;
   var totalOrders = 0, weightedKtr = 0;
@@ -2980,8 +3071,8 @@ function renderWidgetWorstKtr() {
   var top5 = articles.slice(0, 5);
   var html = '';
   top5.forEach(function(a) {
-    // Пороги: >1.5 красный, >1.2 жёлтый, иначе зелёный
-    var cls = a.ktr > 1.5 ? 'danger' : a.ktr > 1.2 ? 'warn' : 'ok';
+    // Пороги: >=1.5 красный, 1.2-1.5 жёлтый, <1.2 зелёный
+    var cls = a.ktr >= 1.5 ? 'danger' : a.ktr >= 1.2 ? 'warn' : 'ok';
     var pct = Math.min(100, (a.ktr / 1.70) * 100);
     html += '<div class="ktr-row">'
       + '<span class="ktr-nm">' + a.nmId + '</span>'
@@ -3026,12 +3117,17 @@ function renderWidgetIlTrend() {
   }
 
   var ctx = canvas.getContext('2d');
-  var accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#6366F1';
+  var cssVar = function(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); };
+  var accentColor = cssVar('--accent') || '#6366F1';
+  var textDim = cssVar('--text-dim') || '#6b7280';
 
+  // Очищаем старый градиент
   var gradient = ctx.createLinearGradient(0, 0, 0, 80);
-  gradient.addColorStop(0, accentColor + '33');
-  gradient.addColorStop(1, accentColor + '00');
+  // Конвертируем var (который может быть rgb/hex) в полу-прозрачный оверлей через rgba
+  gradient.addColorStop(0, hexToRgba(accentColor, 0.2));
+  gradient.addColorStop(1, hexToRgba(accentColor, 0));
 
+  var surfaceColor = cssVar('--surface') || '#fff';
   var data = {
     labels: points.map(function(_, i) { return 'Н-' + (12 - i); }),
     datasets: [{
@@ -3043,7 +3139,7 @@ function renderWidgetIlTrend() {
       tension: 0.35,
       pointRadius: function(ctx) { return ctx.dataIndex === points.length - 1 ? 3 : 0; },
       pointBackgroundColor: accentColor,
-      pointBorderColor: '#fff',
+      pointBorderColor: surfaceColor,
       pointBorderWidth: 1.5,
     }]
   };
