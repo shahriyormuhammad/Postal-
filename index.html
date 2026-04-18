@@ -2796,12 +2796,13 @@ function renderWidgetWorstKtr() {
   var body = document.getElementById('widgetWorstKtrBody');
   if (!body) return;
   var articles = [];
-  if (window.state && state.articles) {
-    Object.keys(state.articles).forEach(function(nmId) {
-      var a = state.articles[nmId];
-      if (a && a.ktr !== undefined && a.ktr !== null && !isNaN(a.ktr)) {
-        articles.push({ nmId: nmId, ktr: a.ktr });
-      }
+  if (typeof state !== 'undefined' && Array.isArray(state.articles)) {
+    state.articles.forEach(function(a) {
+      if (!a || !a.nmId) return;
+      var dl = (typeof a.dl === 'number') ? a.dl : 0;
+      var ktr = (typeof ktrForDl === 'function') ? ktrForDl(dl) : null;
+      if (ktr === null || isNaN(ktr)) return;
+      articles.push({ nmId: a.nmId, ktr: ktr });
     });
   }
   if (articles.length === 0) { body.innerHTML = '<div class="widget-empty">Нет данных</div>'; return; }
@@ -2822,7 +2823,7 @@ function renderWidgetWorstKtr() {
 function renderWidgetStockByOkrug() {
   var body = document.getElementById('widgetStockByOkrugBody');
   if (!body) return;
-  if (!state || !state.stockRows || state.stockRows.length === 0) {
+  if (typeof state === 'undefined' || !state.stockRows || state.stockRows.length === 0) {
     body.innerHTML = '<div class="widget-empty">Нет данных</div>'; return;
   }
   var okrugMap = {};
@@ -2849,7 +2850,7 @@ function renderWidgetInTransit() {
   var wrap = document.getElementById('widgetInTransit');
   var body = document.getElementById('widgetInTransitBody');
   if (!wrap || !body) return;
-  var active = (state && state.activeShipments || []).filter(function(s) { return s.status !== 'delivered'; });
+  var active = ((typeof state !== 'undefined' && state.activeShipments) || []).filter(function(s) { return s.status !== 'delivered'; });
   if (active.length === 0) { wrap.style.display = 'none'; return; }
   wrap.style.display = '';
   var html = '';
@@ -3252,6 +3253,14 @@ function runRedistBuild() {
   } catch (e) {
     alert('Ошибка разбора CSV: ' + e.message);
     return;
+  }
+
+  // Синхронизируем stockRows в state (для виджета «Остатки по округам»)
+  // если ещё не заполнены через syncCabinet
+  if (!state.stockRows || state.stockRows.length === 0) {
+    state.stockRows = stock.map(function(s) {
+      return { nmId: s.nmId, warehouse: s.warehouse, size: s.size, qty: Number(s.qty) || 0 };
+    });
   }
 
   // Гарантируем, что state.articles содержит все артикулы из CSV.
