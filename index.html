@@ -439,6 +439,9 @@
   .edit-qty-input:focus { outline:none; box-shadow:0 0 0 2px rgba(79,109,250,0.25); }
   .fade-out-row { transition:opacity 0.3s ease; opacity:0 !important; }
 
+  /* Скрытый контейнер обратной совместимости (активные отправки — в правом виджете) */
+  .redist-hidden-compat { display: none !important; }
+
   /* Redist 70/30 grid layout */
   .redist-layout {
     display: grid;
@@ -1240,28 +1243,23 @@ C-340,4,132,12,46.21"></textarea>
       <button class="btn ghost" id="btnRedistExport">Экспорт CSV</button>
       <button class="btn ghost" id="btnRedistSave">Сохранить как дневной снимок</button>
     </div>
-    <div class="info">
-      <div>
-        <strong>Формула прогноза.</strong> Если на прошлой неделе артикул получил 15 заказов в регионе — на эту неделю закладываем <strong>15 × 1,15 = 18 шт</strong>. Если на ближайшем складе сейчас меньше 18 — делаем заявку на довоз недостающего с самого «жирного» склада-донора, распределяя по размерам пропорционально тому, что есть у донора.
+    <details style="margin-top:14px">
+      <summary style="cursor:pointer;font-size:12px;color:var(--text-dim)">Как считается прогноз</summary>
+      <div style="font-size:12px;color:var(--text-dim);margin-top:8px;line-height:1.55">
+        <strong style="color:var(--text)">Формула.</strong> Если на прошлой неделе артикул получил 15 заказов в регионе — на эту неделю закладываем <strong>15 × 1,15 = 18 шт</strong>. Если на ближайшем складе сейчас меньше 18 — делаем заявку на довоз недостающего с самого «жирного» склада-донора, распределяя по размерам пропорционально тому, что есть у донора.
       </div>
-    </div>
+    </details>
   </div>
 
-  <!-- Активные отправки (D.2) -->
-  <div id="redistActiveWrap" style="display:none">
-    <div class="card" style="margin-bottom:18px">
-      <div class="redist-card-head" style="cursor:pointer" id="activeShipmentsToggle">
-        <h3 style="margin:0">В пути <span id="activeCount" class="pill" style="font-size:12px">0</span></h3>
-        <span class="toggle-arrow" id="activeArrow">&#9660;</span>
-      </div>
-      <div id="activeShipmentsBody" style="display:none;margin-top:12px">
-        <div id="activeShipmentsList"></div>
-        <div style="margin-top:10px;display:flex;gap:8px">
-          <button class="btn ghost" id="btnRefreshStatuses" type="button" style="font-size:12px">Обновить статусы</button>
-          <button class="btn ghost" id="btnClearDelivered" type="button" style="font-size:12px">Убрать доставленные</button>
-        </div>
-      </div>
-    </div>
+  <!-- Скрытые контейнеры для обратной совместимости JS (аккордеон перенесён в правый виджет) -->
+  <div id="redistActiveWrap" class="redist-hidden-compat">
+    <div id="activeShipmentsList"></div>
+    <button id="btnRefreshStatuses" type="button"></button>
+    <button id="btnClearDelivered" type="button"></button>
+    <span id="activeCount">0</span>
+    <div id="activeShipmentsBody"></div>
+    <div id="activeShipmentsToggle"></div>
+    <span id="activeArrow"></span>
   </div>
 
   <div id="redistResult"></div>
@@ -2915,7 +2913,7 @@ function renderRedistTasks(result) {
       ? `<span class="mono kpi-good">+${Math.round(kpi.savingsPerWeek).toLocaleString('ru-RU')} ₽</span>`
       : '<span class="mono muted">—</span>';
 
-    const tooltipData = `Пр.нед: ${t.lastWeek} → ${t.forecast} | На целев: ${t.currentAtTarget} | КРП: ${kpi.hasArticle ? kpi.oldKrp.toFixed(2)+'%' : '—'} | Размеры: ${sizesStr}`;
+    const tooltipData = `Пр.нед: ${t.lastWeek} → ${t.forecast} | На целев: ${t.currentAtTarget} | КРП: ${kpi.hasArticle ? kpi.oldKrp.toFixed(2)+'%' : '—'}`;
 
     return `
       <tr title="${tooltipData}">
@@ -2927,6 +2925,7 @@ function renderRedistTasks(result) {
         <td>${t.toWh}<div class="muted" style="font-size:11px">${t.region}</div></td>
         <td class="num" style="white-space:nowrap">${ilCell}</td>
         <td class="num"><strong style="font-weight:500">${t.qty}</strong></td>
+        <td style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;color:var(--text-dim)">${sizesStr}</td>
         <td class="num" style="white-space:nowrap">${savCell}</td>
         <td style="white-space:nowrap">
           <button class="act-btn act-ok" type="button" title="Принять заявку"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button>
@@ -2957,16 +2956,12 @@ function renderRedistTasks(result) {
     </div>
   ` : '';
 
+  const summaryInline = `${tasks.length} заявок · ${uniqueArts} артикул${uniqueArts === 1 ? '' : uniqueArts < 5 ? 'а' : 'ов'} · ${totalUnits} шт${unresolved.length ? ' · <span style="color:var(--danger)">'+unresolved.length+' непокрыто</span>' : ''}`;
+
   container.innerHTML = `
-    <div class="stat-grid">
-      <div class="stat"><div class="k">Заявок</div><div class="v">${tasks.length}</div></div>
-      <div class="stat"><div class="k">Артикулов</div><div class="v">${uniqueArts}</div></div>
-      <div class="stat"><div class="k">Всего штук</div><div class="v">${totalUnits}</div></div>
-      <div class="stat"><div class="k">Непокрыто</div><div class="v ${unresolved.length ? 'bad' : 'ok'}">${unresolved.length}</div></div>
-    </div>
     <div class="card">
-      <h3 style="margin-top:0">Заявки на перераспределение</h3>
-      <p class="muted" style="margin-bottom:14px">Отсортированы по приоритету. HIGH — дефицит ≥20 шт, MED — 10–19, LOW — менее 10.</p>
+      <h3 style="margin-top:0;margin-bottom:4px">Заявки на перераспределение</h3>
+      <p class="muted" style="margin-bottom:14px;font-size:12px">${summaryInline}</p>
       <div class="redist-scroll">
         <table class="redist-table">
           <thead>
@@ -2978,6 +2973,7 @@ function renderRedistTasks(result) {
               <th>Откуда</th><th>Куда</th>
               <th class="num" title="Коэффициент территориального распределения (КТР).">КТР ⓘ</th>
               <th class="num">Кол-во</th>
+              <th>Размеры</th>
               <th class="num" title="Экономия ₽/нед при принятии заявки.">Экономия ⓘ</th>
               <th>Действия</th>
             </tr>
