@@ -943,6 +943,89 @@
     color: var(--text-dim); font-size: 13px;
   }
 
+  /* Модалка «Собрать поставку» (G.4) */
+  .dp-modal { position: fixed; inset: 0; z-index: 200; }
+  .dp-modal.hidden { display: none; }
+  .dp-modal-overlay {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(2px);
+  }
+  .dp-modal-content {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(560px, 90vw); max-height: 80vh;
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow-lg);
+    display: flex; flex-direction: column;
+  }
+  .dp-modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; border-bottom: 0.5px solid var(--border);
+  }
+  .dp-modal-head h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--text); }
+  .dp-modal-close {
+    background: none; border: none; color: var(--text-dim);
+    font-size: 22px; line-height: 1; cursor: pointer;
+    padding: 0 6px; border-radius: 4px;
+  }
+  .dp-modal-close:hover { color: var(--text); background: var(--surface-2); }
+  .dp-modal-body {
+    padding: 16px 20px; overflow-y: auto; flex: 1;
+    font-size: 13px; color: var(--text);
+  }
+  .dp-modal-actions {
+    display: flex; gap: 8px; justify-content: flex-end;
+    padding: 12px 20px; border-top: 0.5px solid var(--border);
+  }
+  .dp-assemble-list {
+    display: flex; flex-direction: column; gap: 6px; margin-top: 12px;
+  }
+  .dp-assemble-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; background: var(--surface-2);
+    border: 0.5px solid var(--border); border-radius: 8px;
+  }
+  .dp-assemble-wh {
+    font-weight: 500; font-size: 13px; color: var(--text);
+  }
+  .dp-assemble-meta {
+    color: var(--text-dim); font-size: 11px; margin-top: 2px;
+  }
+  .dp-assemble-qty {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600; font-size: 13px; color: var(--accent);
+  }
+
+  /* Coverage bars (G.4) */
+  .coverage-row {
+    display: grid; grid-template-columns: 70px 1fr 40px;
+    align-items: center; gap: 8px;
+    padding: 5px 0; font-size: 12px;
+  }
+  .coverage-name { color: var(--text); }
+  .coverage-bar-wrap {
+    height: 6px; border-radius: 3px;
+    background: var(--surface-3);
+    overflow: hidden;
+  }
+  .coverage-bar {
+    height: 100%; border-radius: 3px;
+    transition: width 300ms ease;
+  }
+  .coverage-bar.bad { background: var(--danger); }
+  .coverage-bar.warn { background: var(--warn); }
+  .coverage-bar.ok { background: var(--ok); }
+  .coverage-pct {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600; text-align: right; font-size: 11px;
+  }
+  .coverage-pct.bad { color: var(--danger); }
+  .coverage-pct.warn { color: var(--warn); }
+  .coverage-pct.ok { color: var(--ok); }
+
   h2 {
     font-size: 22px; font-weight: 500; margin-bottom: 6px; letter-spacing: -0.01em; color: var(--text);
   }
@@ -1436,6 +1519,18 @@ C-340,4,132,12,46.21"></textarea>
 
   <!-- Подпанель 1: План поставки -->
   <div class="sub-panel active" id="step-supply">
+  <!-- Навигация по шаблонам из «Плана поставки» (G.4) -->
+  <div class="card" id="supTemplateNav" style="display:none;background:var(--accent-soft);border-color:var(--accent-border);padding:10px 16px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <strong id="supTplLabel" style="font-size:13px;color:var(--accent)">Шаблон 1 из 1</strong>
+        <div class="muted" id="supTplHint" style="font-size:11px;margin-top:2px">—</div>
+      </div>
+      <button class="btn ghost" id="supTplPrev" type="button" style="padding:6px 10px;font-size:13px">◀ Назад</button>
+      <button class="btn ghost" id="supTplNext" type="button" style="padding:6px 10px;font-size:13px">Вперёд ▶</button>
+      <button class="btn ghost" id="supTplClear" type="button" style="padding:6px 10px;font-size:13px">Завершить</button>
+    </div>
+  </div>
   <div class="card">
     <h3 style="margin-top:0">Создать поставку</h3>
     <p class="muted" style="margin-bottom:14px">Введите артикул и ростовку (размер × шт в 1 коробке). При повторном вводе того же Vendor Code ростовка подтянется автоматически.</p>
@@ -1651,11 +1746,38 @@ C-340,4,132,12,46.21"></textarea>
       </div>
     </div>
 
-    <!-- Правая колонка: виджеты (наполняем в G.4) -->
+    <!-- Правая колонка: виджеты -->
     <div class="redist-sidebar" id="dpSidebar">
+      <!-- 1) Сводка распределения (donut) -->
       <div class="widget-card" id="dpWidgetSummary">
         <h4 class="widget-title">Сводка распределения</h4>
-        <div class="widget-body" id="dpWidgetSummaryBody"><div class="widget-empty">Добавь артикул, чтобы увидеть распределение</div></div>
+        <div class="widget-body" id="dpWidgetSummaryBody">
+          <div class="donut-wrap" style="height:140px">
+            <canvas id="dpChartSummary"></canvas>
+            <div class="donut-center">
+              <div class="donut-center-value" id="dpSummaryTotal">0</div>
+              <div class="donut-center-label">шт</div>
+            </div>
+          </div>
+          <div class="okrug-legend" id="dpSummaryLegend"></div>
+          <div class="widget-empty" id="dpSummaryEmpty">Добавь артикул, чтобы увидеть распределение</div>
+        </div>
+      </div>
+
+      <!-- 2) Топ дефицитных артикулов -->
+      <div class="widget-card" id="dpWidgetTopDeficit">
+        <h4 class="widget-title">Топ дефицитных артикулов</h4>
+        <div class="widget-body" id="dpWidgetTopDeficitBody">
+          <div class="widget-empty">Нет данных</div>
+        </div>
+      </div>
+
+      <!-- 3) Покрытие по округам -->
+      <div class="widget-card" id="dpWidgetCoverage">
+        <h4 class="widget-title">Покрытие по округам</h4>
+        <div class="widget-body" id="dpWidgetCoverageBody">
+          <div class="widget-empty">Нет данных</div>
+        </div>
       </div>
     </div>
   </div>
@@ -1675,6 +1797,22 @@ C-340,4,132,12,46.21"></textarea>
     </div>
   </div>
 </section>
+
+<!-- Модалка «Собрать поставку» (G.4) -->
+<div id="dpAssembleModal" class="dp-modal hidden">
+  <div class="dp-modal-overlay" id="dpModalOverlay"></div>
+  <div class="dp-modal-content">
+    <div class="dp-modal-head">
+      <h3 id="dpModalTitle">Сборка поставки</h3>
+      <button class="dp-modal-close" id="dpModalClose" type="button" aria-label="Закрыть">&times;</button>
+    </div>
+    <div class="dp-modal-body" id="dpModalBody"></div>
+    <div class="dp-modal-actions">
+      <button class="btn ghost" id="dpAssembleCancel" type="button">Отмена</button>
+      <button class="btn" id="dpAssembleConfirm" type="button">Создать шаблоны</button>
+    </div>
+  </div>
+</div>
 
 <!-- ========== PROGRESS ========== -->
 <section class="panel" id="panel-progress">
@@ -2601,7 +2739,10 @@ document.querySelectorAll('.sidebar-item').forEach(function(btn) {
     if (title && label) title.textContent = label.textContent;
     // Перерисовать KPI при входе на вкладку «Перераспределение»
     if (btn.dataset.tab === 'redist' && typeof renderRedistKpi === 'function') renderRedistKpi();
-    if (btn.dataset.tab === 'delivery-plan' && typeof renderDpDeficitTable === 'function') renderDpDeficitTable();
+    if (btn.dataset.tab === 'delivery-plan') {
+      if (typeof renderDpDeficitTable === 'function') renderDpDeficitTable();
+      if (typeof renderAllDpWidgets === 'function') setTimeout(renderAllDpWidgets, 100);
+    }
     // На мобильном — закрыть sidebar
     var sb = document.getElementById('sidebar');
     if (sb) sb.classList.remove('mobile-open');
@@ -4061,8 +4202,14 @@ function renderDpAddedTable() {
 
   tbody.innerHTML = html;
 
-  // Обновляем summary widget
-  if (typeof renderDpSummary === 'function') renderDpSummary();
+  // Перерисовка чекбоксов выбора
+  document.querySelectorAll('#dpAddedTbody .dp-chk').forEach(function(c) {
+    if (window.__dpSelection && window.__dpSelection.has(c.dataset.dpId)) c.checked = true;
+  });
+  if (typeof dpBbUpdate === 'function') dpBbUpdate();
+
+  // Обновляем виджеты справа
+  if (typeof renderAllDpWidgets === 'function') renderAllDpWidgets();
 }
 
 // Рендер раскрытой панели распределения (вставка под строку)
@@ -4112,37 +4259,173 @@ function renderDpDistRow(itemId) {
   return html;
 }
 
-// Обновить summary в правой колонке (donut через widget пока упрощённый — в G.4 будет donut)
+// Donut: Сводка распределения (G.4)
+var dpChartSummaryInstance = null;
+
 function renderDpSummary() {
-  var body = document.getElementById('dpWidgetSummaryBody');
-  if (!body) return;
-  var items = state.deliveryPlan || [];
-  if (items.length === 0) {
-    body.innerHTML = '<div class="widget-empty">Добавь артикул, чтобы увидеть распределение</div>';
-    return;
-  }
+  var canvas = document.getElementById('dpChartSummary');
+  var totalEl = document.getElementById('dpSummaryTotal');
+  var legendEl = document.getElementById('dpSummaryLegend');
+  var emptyEl = document.getElementById('dpSummaryEmpty');
+  var donutWrap = canvas ? canvas.parentNode : null;
+  if (!canvas || typeof Chart === 'undefined') return;
+
+  var items = (typeof state !== 'undefined' && state.deliveryPlan) ? state.deliveryPlan : [];
   var byOkrug = {};
   var totalQty = 0;
   items.forEach(function(it) {
-    if (!it.distribution || it.distribution.status !== 'ok') return;
+    if (!it.distribution || !it.distribution.regions) return;
     it.distribution.regions.forEach(function(r) {
       byOkrug[r.okrug] = (byOkrug[r.okrug] || 0) + r.qty;
       totalQty += r.qty;
     });
   });
+
   if (totalQty === 0) {
-    body.innerHTML = '<div class="widget-empty">Нет распределения (все локально?)</div>';
+    if (donutWrap) donutWrap.style.display = 'none';
+    if (legendEl) legendEl.innerHTML = '';
+    if (totalEl) totalEl.textContent = '0';
+    if (emptyEl) emptyEl.style.display = '';
+    if (dpChartSummaryInstance) { dpChartSummaryInstance.destroy(); dpChartSummaryInstance = null; }
     return;
   }
-  var okrugs = Object.keys(byOkrug).sort(function(a, b) { return byOkrug[b] - byOkrug[a]; });
-  var html = '<div style="font-size:22px;font-weight:500;font-family:\'JetBrains Mono\',monospace;color:var(--text);margin-bottom:4px">' + totalQty + ' <span style="font-size:12px;color:var(--text-dim);font-weight:400">шт</span></div>';
-  html += '<div style="font-size:11px;color:var(--text-dim);margin-bottom:10px">' + items.length + ' артикул · ' + okrugs.length + ' округ</div>';
-  okrugs.forEach(function(okrug) {
-    var qty = byOkrug[okrug];
-    var pct = Math.round((qty / totalQty) * 100);
-    html += '<div class="okrug-row"><span class="okrug-name">' + okrug + '</span><span class="okrug-qty">' + qty + ' шт · ' + pct + '%</span></div>';
+  if (emptyEl) emptyEl.style.display = 'none';
+  if (donutWrap) donutWrap.style.display = '';
+
+  var order = ['ЦФО', 'ПФО', 'СФО+ДФО', 'ЮФО+СКФО', 'УФО', 'СЗФО', 'Другое'];
+  var colors = { 'ЦФО': '#6366F1', 'ПФО': '#8B5CF6', 'СФО+ДФО': '#10B981',
+    'ЮФО+СКФО': '#F59E0B', 'УФО': '#3B82F6', 'СЗФО': '#EC4899', 'Другое': '#9CA3AF' };
+
+  var labels = [], values = [], bgColors = [];
+  order.forEach(function(k) {
+    if (byOkrug[k] && byOkrug[k] > 0) { labels.push(k); values.push(byOkrug[k]); bgColors.push(colors[k] || '#9CA3AF'); }
+  });
+
+  if (totalEl) totalEl.textContent = totalQty.toLocaleString('ru-RU');
+
+  var data = { labels: labels, datasets: [{ data: values, backgroundColor: bgColors, borderWidth: 0 }] };
+  var options = {
+    responsive: true, maintainAspectRatio: false,
+    animation: { duration: 300 },
+    cutout: '65%',
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        displayColors: false,
+        callbacks: {
+          label: function(ctx) {
+            var pct = Math.round((ctx.parsed / totalQty) * 100);
+            return ctx.label + ': ' + ctx.parsed.toLocaleString('ru-RU') + ' шт (' + pct + '%)';
+          }
+        }
+      }
+    }
+  };
+
+  if (dpChartSummaryInstance) {
+    dpChartSummaryInstance.data = data;
+    dpChartSummaryInstance.options = options;
+    dpChartSummaryInstance.update();
+  } else {
+    dpChartSummaryInstance = new Chart(canvas.getContext('2d'), { type: 'doughnut', data: data, options: options });
+  }
+
+  if (legendEl) {
+    var legendHtml = '';
+    labels.forEach(function(name, i) {
+      var pct = Math.round((values[i] / totalQty) * 100);
+      legendHtml += '<div class="okrug-legend-item">'
+        + '<span class="okrug-legend-dot" style="background:' + bgColors[i] + '"></span>'
+        + '<span class="okrug-legend-name">' + name + '</span>'
+        + '<span class="okrug-legend-qty">' + values[i] + ' · ' + pct + '%</span>'
+        + '</div>';
+    });
+    legendEl.innerHTML = legendHtml;
+  }
+}
+
+// Виджет «Топ дефицитных артикулов» (G.4)
+function renderDpTopDeficit() {
+  var body = document.getElementById('dpWidgetTopDeficitBody');
+  if (!body) return;
+  if (!state.articles || !state.articles.length) {
+    body.innerHTML = '<div class="widget-empty">Нет данных</div>';
+    return;
+  }
+  var periodDays = 30, forecastDays = 30;
+  var pEl = document.getElementById('dpDefPeriodDays');
+  var fEl = document.getElementById('dpDefForecastDays');
+  if (pEl && pEl.value) periodDays = Number(pEl.value) || 30;
+  if (fEl && fEl.value) forecastDays = Number(fEl.value) || 30;
+  var data = computeDeficitTable(periodDays, forecastDays);
+  var top5 = data.rows.filter(function(r) { return r.totalNeed > 0; }).slice(0, 5);
+  if (top5.length === 0) {
+    body.innerHTML = '<div class="widget-empty">Нет артикулов с дефицитом</div>';
+    return;
+  }
+  var maxNeed = top5[0].totalNeed || 1;
+  var html = '';
+  top5.forEach(function(r) {
+    var pct = Math.min(100, (r.totalNeed / maxNeed) * 100);
+    var cls = r.totalNeed > maxNeed * 0.7 ? 'danger' : r.totalNeed > maxNeed * 0.4 ? 'warn' : 'ok';
+    html += '<div class="ktr-row">'
+      + '<span class="ktr-nm">' + r.nmId + '</span>'
+      + '<div class="ktr-bar-wrap"><div class="ktr-bar ' + cls + '" style="width:' + pct.toFixed(0) + '%"></div></div>'
+      + '<span class="ktr-value ' + cls + '">' + r.totalNeed + '</span>'
+      + '</div>'
+      + '<div style="font-size:10px;color:var(--text-soft);margin:-2px 0 6px 88px">' + (r.maxNeedOkrug || '—') + '</div>';
   });
   body.innerHTML = html;
+}
+
+// Виджет «Покрытие по округам» (G.4)
+function renderDpCoverage() {
+  var body = document.getElementById('dpWidgetCoverageBody');
+  if (!body) return;
+  if (!state.articles || !state.articles.length) {
+    body.innerHTML = '<div class="widget-empty">Нет данных</div>';
+    return;
+  }
+  var periodDays = 30, forecastDays = 30;
+  var pEl = document.getElementById('dpDefPeriodDays');
+  var fEl = document.getElementById('dpDefForecastDays');
+  if (pEl && pEl.value) periodDays = Number(pEl.value) || 30;
+  if (fEl && fEl.value) forecastDays = Number(fEl.value) || 30;
+  var data = computeDeficitTable(periodDays, forecastDays);
+  if (!data.total || !data.total.byOkrug) {
+    body.innerHTML = '<div class="widget-empty">Нет данных</div>';
+    return;
+  }
+  var order = ['ЦФО', 'СЗФО', 'ПФО', 'УФО', 'СФО+ДФО', 'ЮФО+СКФО'];
+  var html = '';
+  var hasAny = false;
+  order.forEach(function(ok) {
+    var c = data.total.byOkrug[ok];
+    if (!c || (c.sales === 0 && c.stock === 0)) return;
+    hasAny = true;
+    var projected = Math.ceil(c.sales * data.factor);
+    var coverage = projected > 0 ? (c.stock / projected) * 100 : 100;
+    var displayPct = Math.min(999, coverage);
+    var barPct = Math.min(100, coverage);
+    var cls = coverage < 50 ? 'bad' : coverage < 80 ? 'warn' : 'ok';
+    html += '<div class="coverage-row">'
+      + '<span class="coverage-name">' + ok + '</span>'
+      + '<div class="coverage-bar-wrap"><div class="coverage-bar ' + cls + '" style="width:' + barPct.toFixed(0) + '%"></div></div>'
+      + '<span class="coverage-pct ' + cls + '">' + Math.round(displayPct) + '%</span>'
+      + '</div>';
+  });
+  if (!hasAny) {
+    body.innerHTML = '<div class="widget-empty">Нет данных по округам</div>';
+    return;
+  }
+  body.innerHTML = html;
+}
+
+// Обёртка для всех виджетов плана
+function renderAllDpWidgets() {
+  try { renderDpSummary(); } catch(e) {}
+  try { renderDpTopDeficit(); } catch(e) {}
+  try { renderDpCoverage(); } catch(e) {}
 }
 
 // Применить стратегию (UI active state) + сохранить в localStorage
@@ -4561,6 +4844,10 @@ function renderDpDeficitTable() {
   }).join('');
 
   tableEl.innerHTML = '<thead>' + theadHtml + '</thead><tbody>' + totalsHtml + rowsHtml + '</tbody>';
+
+  // Обновляем виджеты (топ-дефицит и покрытие пересчитываются из этих данных)
+  if (typeof renderDpTopDeficit === 'function') renderDpTopDeficit();
+  if (typeof renderDpCoverage === 'function') renderDpCoverage();
 }
 
 // Добавить артикул из Блока 2 в Блок 1
@@ -4597,6 +4884,209 @@ function dpAddFromDeficit(nmId) {
   if (typeof showUndoToast === 'function') {
     showUndoToast('Добавлен артикул ' + nmId + ' (+' + item.total + ' шт)', null, 3000);
   }
+}
+
+/* =========================================================
+   МАССОВЫЕ ДЕЙСТВИЯ + МОДАЛКА «СОБРАТЬ ПОСТАВКУ» (G.4)
+   ========================================================= */
+
+// Состояние выбора: Set of item.id
+window.__dpSelection = new Set();
+
+// Шаблоны поставок, готовые для переноса в «Поставка»
+state.supplyPlanTemplates = state.supplyPlanTemplates || [];
+state.supplyPlanTemplateIdx = 0;
+
+function dpBbUpdate() {
+  var bar = document.getElementById('dpBottomBar');
+  if (!bar) return;
+  var sel = window.__dpSelection;
+  if (!sel.size) { bar.style.display = 'none'; return; }
+  bar.style.display = '';
+  var items = state.deliveryPlan.filter(function(it) { return sel.has(it.id); });
+  var nArts = items.length;
+  var nBoxes = items.reduce(function(s, it) { return s + (it.boxes || 0); }, 0);
+  var nTotal = items.reduce(function(s, it) { return s + (it.total || 0); }, 0);
+  var a = function(n, forms) { var mod10 = n % 10, mod100 = n % 100;
+    if (mod10 === 1 && mod100 !== 11) return forms[0];
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return forms[1];
+    return forms[2];
+  };
+  document.getElementById('dpBbItems').textContent = nArts + ' ' + a(nArts, ['артикул', 'артикула', 'артикулов']);
+  document.getElementById('dpBbBoxes').textContent = nBoxes + ' ' + a(nBoxes, ['коробка', 'коробки', 'коробок']);
+  document.getElementById('dpBbTotal').textContent = nTotal + ' шт';
+}
+
+function dpSelectionReset() {
+  window.__dpSelection.clear();
+  document.querySelectorAll('.dp-chk').forEach(function(c) { c.checked = false; });
+  var allChk = document.getElementById('dpChkAll');
+  if (allChk) allChk.checked = false;
+  dpBbUpdate();
+}
+
+function dpSelectionToggle(id, checked) {
+  if (checked) window.__dpSelection.add(id);
+  else window.__dpSelection.delete(id);
+  dpBbUpdate();
+}
+
+// Сборка шаблонов: группировка по warehouse
+function assembleSupplyPlans(selectedItems) {
+  var byWh = {};
+  selectedItems.forEach(function(it) {
+    if (!it.distribution || !it.distribution.regions) return;
+    it.distribution.regions.forEach(function(r) {
+      if (!r.qty || r.qty <= 0) return;
+      var wh = r.warehouse || '—';
+      if (!byWh[wh]) byWh[wh] = { name: wh, items: [], totalQty: 0 };
+      byWh[wh].items.push({
+        nmId: it.nmId,
+        vendorCode: it.vendorCode || '',
+        qty: r.qty,
+        perBox: it.perBox,
+        boxes: Math.max(1, Math.ceil(r.qty / (it.perBox || 1))),
+        okrug: r.okrug,
+      });
+      byWh[wh].totalQty += r.qty;
+    });
+  });
+  var warehouses = Object.keys(byWh).map(function(k) { return byWh[k]; });
+  warehouses.sort(function(a, b) { return b.totalQty - a.totalQty; });
+  return {
+    warehouses: warehouses,
+    totalSupplies: warehouses.length,
+    totalArticles: selectedItems.length,
+    totalQty: warehouses.reduce(function(s, w) { return s + w.totalQty; }, 0),
+  };
+}
+
+function dpShowAssembleModal() {
+  var sel = window.__dpSelection;
+  if (!sel.size) { alert('Выберите хотя бы один артикул'); return; }
+  var items = state.deliveryPlan.filter(function(it) { return sel.has(it.id); });
+  // Фильтруем только те, у которых есть распределение
+  var validItems = items.filter(function(it) {
+    return it.distribution && it.distribution.regions && it.distribution.regions.some(function(r) { return r.qty > 0; });
+  });
+  if (!validItems.length) {
+    alert('У выбранных артикулов нет распределения по округам. Выберите аналог или артикулы с историей.');
+    return;
+  }
+  var assembled = assembleSupplyPlans(validItems);
+  window.__dpAssembled = assembled;
+
+  var modal = document.getElementById('dpAssembleModal');
+  var body = document.getElementById('dpModalBody');
+  var title = document.getElementById('dpModalTitle');
+  if (!modal || !body) return;
+
+  title.textContent = 'Сборка поставки: ' + assembled.totalSupplies + ' шт → ' + assembled.totalArticles + ' артикул';
+
+  var totalBoxes = 0;
+  assembled.warehouses.forEach(function(wh) {
+    wh.items.forEach(function(i) { totalBoxes += i.boxes; });
+  });
+
+  var summaryHtml = '<div style="padding:10px 14px;background:var(--surface-2);border-radius:8px;margin-bottom:8px">'
+    + '<div style="font-size:12px;color:var(--text-dim);margin-bottom:4px">Будет создано</div>'
+    + '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px">'
+    +   '<span><strong>' + assembled.totalSupplies + '</strong> поставок</span>'
+    +   '<span><strong>' + assembled.totalArticles + '</strong> артикулов</span>'
+    +   '<span><strong>' + assembled.totalQty + '</strong> шт</span>'
+    +   '<span><strong>~' + totalBoxes + '</strong> коробок</span>'
+    + '</div>'
+    + '</div>';
+
+  var listHtml = '<div class="dp-assemble-list">';
+  assembled.warehouses.forEach(function(wh) {
+    var artsText = wh.items.length + ' артик';
+    var itemsPreview = wh.items.map(function(i) {
+      return (i.vendorCode || i.nmId) + ' (' + i.qty + ' шт)';
+    }).slice(0, 3).join(', ');
+    if (wh.items.length > 3) itemsPreview += '…';
+    var boxes = wh.items.reduce(function(s, i) { return s + i.boxes; }, 0);
+    listHtml += '<div class="dp-assemble-item">'
+      + '<div><div class="dp-assemble-wh">' + wh.name + '</div>'
+      +   '<div class="dp-assemble-meta">' + artsText + ' · ~' + boxes + ' кор · ' + itemsPreview + '</div></div>'
+      + '<div class="dp-assemble-qty">' + wh.totalQty + ' шт</div>'
+      + '</div>';
+  });
+  listHtml += '</div>';
+
+  body.innerHTML = summaryHtml + '<p class="muted" style="font-size:12px;margin-top:8px">После подтверждения шаблоны появятся в разделе «Поставка» → Шаг 1. Переключайтесь между ними через ◀ ▶.</p>' + listHtml;
+
+  modal.classList.remove('hidden');
+}
+
+function dpHideAssembleModal() {
+  var modal = document.getElementById('dpAssembleModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function dpConfirmAssemble() {
+  var assembled = window.__dpAssembled;
+  if (!assembled) return;
+  state.supplyPlanTemplates = assembled.warehouses.map(function(wh) {
+    return {
+      warehouse: wh.name,
+      items: wh.items.slice(),
+      totalQty: wh.totalQty,
+    };
+  });
+  state.supplyPlanTemplateIdx = 0;
+  dpHideAssembleModal();
+  // Переход на раздел «Поставка» → Шаг 1
+  var planTab = document.querySelector('.sidebar-item[data-tab="plan"]');
+  if (planTab) planTab.click();
+  setTimeout(function() {
+    var step1 = document.querySelector('#planSubTabs .sub-tab[data-step="supply"]');
+    if (step1) step1.click();
+    applySupplyPlanTemplate(0);
+  }, 100);
+}
+
+function applySupplyPlanTemplate(idx) {
+  var nav = document.getElementById('supTemplateNav');
+  var label = document.getElementById('supTplLabel');
+  var hint = document.getElementById('supTplHint');
+  var templates = state.supplyPlanTemplates || [];
+  if (!nav) return;
+  if (!templates.length) { nav.style.display = 'none'; return; }
+
+  idx = Math.max(0, Math.min(templates.length - 1, idx));
+  state.supplyPlanTemplateIdx = idx;
+  var tpl = templates[idx];
+
+  nav.style.display = '';
+  if (label) label.textContent = 'Шаблон ' + (idx + 1) + ' из ' + templates.length + ' · ' + tpl.warehouse;
+  if (hint) {
+    var artList = tpl.items.map(function(i) { return (i.vendorCode || i.nmId) + ' × ' + i.qty + ' шт'; }).slice(0, 3).join(' · ');
+    if (tpl.items.length > 3) artList += ' · ещё ' + (tpl.items.length - 3);
+    hint.textContent = tpl.items.length + ' артикул · ' + tpl.totalQty + ' шт · ' + artList;
+  }
+
+  // Показать уведомление (первым артикулом заполним форму)
+  if (tpl.items.length && typeof showUndoToast === 'function') {
+    showUndoToast('Шаблон ' + (idx + 1) + '/' + templates.length + ' загружен: ' + tpl.warehouse + ' (' + tpl.totalQty + ' шт)', null, 4000);
+  }
+  // Предзаполняем форму первым артикулом
+  var first = tpl.items[0];
+  if (first) {
+    var vcInput = document.getElementById('supVendorCode');
+    var nmInput = document.getElementById('supNmId');
+    var boxesInput = document.getElementById('supBoxes');
+    if (vcInput) vcInput.value = first.vendorCode || '';
+    if (nmInput) nmInput.value = first.nmId || '';
+    if (boxesInput) boxesInput.value = first.boxes || 1;
+  }
+}
+
+function clearSupplyPlanTemplates() {
+  state.supplyPlanTemplates = [];
+  state.supplyPlanTemplateIdx = 0;
+  var nav = document.getElementById('supTemplateNav');
+  if (nav) nav.style.display = 'none';
 }
 
 // Пересчёт всех items при смене стратегии
@@ -4881,6 +5371,65 @@ function dpRecomputeAllForStrategy() {
 
     // Первый рендер таблицы (если данные уже есть)
     setTimeout(renderDpDeficitTable, 100);
+
+    // Чекбоксы в таблице Блока 1 (делегирование)
+    var addedTbody = document.getElementById('dpAddedTbody');
+    if (addedTbody) addedTbody.addEventListener('change', function(e) {
+      if (e.target && e.target.classList.contains('dp-chk') && e.target.dataset.dpId) {
+        dpSelectionToggle(e.target.dataset.dpId, e.target.checked);
+      }
+    });
+
+    // «Выбрать все» в Блоке 1
+    var chkAll = document.getElementById('dpChkAll');
+    if (chkAll) chkAll.addEventListener('change', function() {
+      var on = chkAll.checked;
+      state.deliveryPlan.forEach(function(it) {
+        if (on) window.__dpSelection.add(it.id);
+        else window.__dpSelection.delete(it.id);
+      });
+      document.querySelectorAll('#dpAddedTbody .dp-chk').forEach(function(c) { c.checked = on; });
+      dpBbUpdate();
+    });
+
+    // Sticky bar кнопки
+    var bbReset = document.getElementById('dpBbReset');
+    if (bbReset) bbReset.addEventListener('click', dpSelectionReset);
+    var bbAssemble = document.getElementById('dpBbAssemble');
+    if (bbAssemble) bbAssemble.addEventListener('click', dpShowAssembleModal);
+
+    // Модалка: закрытие по overlay / ×
+    var overlay = document.getElementById('dpModalOverlay');
+    if (overlay) overlay.addEventListener('click', dpHideAssembleModal);
+    var closeBtn = document.getElementById('dpModalClose');
+    if (closeBtn) closeBtn.addEventListener('click', dpHideAssembleModal);
+    var cancelBtn = document.getElementById('dpAssembleCancel');
+    if (cancelBtn) cancelBtn.addEventListener('click', dpHideAssembleModal);
+    var confirmBtn = document.getElementById('dpAssembleConfirm');
+    if (confirmBtn) confirmBtn.addEventListener('click', dpConfirmAssemble);
+    // Escape
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        var m = document.getElementById('dpAssembleModal');
+        if (m && !m.classList.contains('hidden')) dpHideAssembleModal();
+      }
+    });
+
+    // Навигация шаблонов в Шаг 1 «Поставка»
+    var tplPrev = document.getElementById('supTplPrev');
+    var tplNext = document.getElementById('supTplNext');
+    var tplClear = document.getElementById('supTplClear');
+    if (tplPrev) tplPrev.addEventListener('click', function() {
+      applySupplyPlanTemplate((state.supplyPlanTemplateIdx || 0) - 1);
+    });
+    if (tplNext) tplNext.addEventListener('click', function() {
+      applySupplyPlanTemplate((state.supplyPlanTemplateIdx || 0) + 1);
+    });
+    if (tplClear) tplClear.addEventListener('click', function() {
+      if (confirm('Завершить работу с шаблонами? Неиспользованные шаблоны будут удалены.')) {
+        clearSupplyPlanTemplates();
+      }
+    });
 
     // Делегирование: поиск в dropdown аналогов
     if (tbody) tbody.addEventListener('input', function(e) {
