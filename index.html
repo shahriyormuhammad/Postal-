@@ -666,9 +666,89 @@
   }
 
   /* Чекбокс строки */
-  .redist-chk, #redistChkAll {
+  .redist-chk, #redistChkAll, .dp-chk, #dpChkAll {
     width: 15px; height: 15px; cursor: pointer;
     accent-color: var(--accent);
+  }
+
+  /* =========== DELIVERY PLAN (Этап G) =========== */
+  .dp-input-row {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr 0.8fr 0.8fr 0.8fr;
+    gap: 12px;
+  }
+  @media (max-width: 980px) {
+    .dp-input-row { grid-template-columns: 1fr 1fr; }
+  }
+  .dp-status-pill {
+    display: inline-block; padding: 2px 8px; border-radius: 100px;
+    font-size: 11px; font-weight: 500; white-space: nowrap;
+  }
+  .dp-status-pill.ok { background: var(--ok-soft); color: var(--ok); }
+  .dp-status-pill.warn { background: var(--warn-soft); color: var(--warn); }
+  .dp-status-pill.bad { background: var(--danger-soft); color: var(--danger); }
+
+  .dp-show-dist-btn {
+    background: none; border: 0.5px solid var(--border);
+    color: var(--accent); cursor: pointer;
+    padding: 4px 10px; border-radius: 6px;
+    font-size: 12px; font-family: inherit; font-weight: 500;
+    transition: background 150ms;
+  }
+  .dp-show-dist-btn:hover { background: var(--accent-soft); }
+  .dp-show-dist-btn.expanded { background: var(--accent-soft); }
+
+  .dp-dist-row td {
+    background: var(--surface-2) !important;
+    padding: 0 !important;
+  }
+  .dp-dist-wrap {
+    padding: 10px 14px;
+  }
+  .dp-dist-table {
+    width: auto; min-width: 60%; border-collapse: collapse;
+    background: var(--surface); border-radius: 8px;
+    border: 0.5px solid var(--border);
+    font-size: 12px;
+  }
+  .dp-dist-table th {
+    background: var(--surface-2); color: var(--text-dim);
+    font-weight: 500; text-align: left;
+    padding: 8px 10px; border-bottom: 0.5px solid var(--border);
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em;
+  }
+  .dp-dist-table td {
+    padding: 6px 10px; border-bottom: 0.5px solid var(--surface-3);
+  }
+  .dp-dist-table tr:last-child td { border-bottom: none; }
+  .dp-dist-table .num {
+    text-align: right; font-variant-numeric: tabular-nums;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .dp-dist-total-row td {
+    font-weight: 600; background: var(--surface-2);
+    border-top: 1px solid var(--border);
+  }
+  .dp-qty-edit {
+    width: 70px; padding: 3px 6px; font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    border: 1px solid var(--border); border-radius: 4px;
+    text-align: right; background: var(--surface); color: var(--text);
+  }
+  .dp-qty-edit:focus {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft);
+  }
+  .dp-qty-edit.invalid { border-color: var(--danger); }
+  .dp-wh-select {
+    font-size: 12px; padding: 3px 6px;
+    border: 1px solid var(--border); border-radius: 4px;
+    background: var(--surface); color: var(--text);
+    font-family: inherit; max-width: 180px;
+  }
+  .dp-wh-select:focus { outline: none; border-color: var(--accent); }
+  .dp-no-history-msg {
+    color: var(--text-dim); font-size: 12px; padding: 8px 12px;
   }
 
   h2 {
@@ -946,6 +1026,10 @@
     <button class="sidebar-item" data-tab="details">
       <svg viewBox="0 0 24 24"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></svg>
       <span class="sidebar-label">Детали по размерам</span>
+    </button>
+    <button class="sidebar-item" data-tab="delivery-plan">
+      <svg viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6"/><path d="M9 16h6"/><path d="M9 8h.01"/></svg>
+      <span class="sidebar-label">План поставки</span>
     </button>
     <button class="sidebar-item" data-tab="plan">
       <svg viewBox="0 0 24 24"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
@@ -1265,6 +1349,91 @@ C-340,4,132,12,46.21"></textarea>
   </div>
   </div><!-- /step-barcodes -->
 
+</section>
+
+<!-- ========== DELIVERY PLAN ========== -->
+<section class="panel" id="panel-delivery-plan">
+  <h2>План поставки</h2>
+  <p class="lead">Добавь артикулы и их количество — система распределит по округам на основе истории заказов и подберёт склады по выбранной стратегии.</p>
+
+  <div class="redist-layout">
+    <div class="redist-main">
+      <!-- БЛОК 1: ПЛАНИРОВЩИК -->
+      <div class="card">
+        <div class="redist-card-head">
+          <h3 style="margin:0">Добавить артикул</h3>
+          <div class="strategy-switch" id="dpStrategySwitch" role="tablist" aria-label="Стратегия распределения">
+            <button class="strategy-opt" data-dp-strategy="speed" type="button" title="Топовые склады по скорости доставки в округ">Скорость</button>
+            <button class="strategy-opt" data-dp-strategy="cost" type="button" title="Самые дешёвые склады в округе">Стоимость</button>
+          </div>
+        </div>
+        <div class="dp-input-row" style="margin-top:14px">
+          <div><label>Артикул продавца</label><input id="dpVendorCode" autocomplete="off" placeholder="напр. ММММ"/></div>
+          <div><label>Артикул WB (nmId)</label><input id="dpNmId" type="number" placeholder="123456789"/></div>
+          <div><label>Коробок</label><input id="dpBoxes" type="number" min="1" value="1"/></div>
+          <div><label>Шт/коробка</label><input id="dpPerBox" type="number" min="1" placeholder="20"/></div>
+          <div><label>Итого шт</label><input id="dpTotal" readonly style="background:var(--surface-2);color:var(--text-dim)" tabindex="-1"/></div>
+        </div>
+        <div class="btn-row" style="margin-top:12px">
+          <button class="btn" id="dpAdd" type="button">+ Добавить</button>
+          <button class="btn ghost" id="dpClear" type="button">Очистить список</button>
+          <span class="muted" id="dpHint" style="align-self:center;margin-left:6px;font-size:12px"></span>
+        </div>
+      </div>
+
+      <!-- Таблица добавленных артикулов -->
+      <div class="card" id="dpAddedWrap" style="display:none">
+        <h3 style="margin-top:0;margin-bottom:4px">Запланированные артикулы <span id="dpAddedCount" class="muted" style="font-weight:normal;font-size:12px"></span></h3>
+        <p class="muted" style="margin-bottom:14px;font-size:12px">Распределение считается только по нелокальным заказам (округа, где товара сейчас нет на складах).</p>
+        <div class="redist-scroll">
+          <table class="redist-table" id="dpAddedTable" style="min-width:900px">
+            <thead><tr>
+              <th class="col-sticky col-s0" style="width:30px"><input type="checkbox" id="dpChkAll" title="Выбрать все"></th>
+              <th class="col-sticky col-s1" style="left:30px;width:28px">#</th>
+              <th>Артикул</th>
+              <th class="num">Коробок</th>
+              <th class="num">Шт/кор</th>
+              <th class="num">Итого</th>
+              <th>Статус</th>
+              <th>Аналог</th>
+              <th>Распределение</th>
+              <th>Действия</th>
+            </tr></thead>
+            <tbody id="dpAddedTbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- БЛОК 2: дефицит — пустая заглушка до G.3 -->
+      <div class="card" id="dpDeficitWrap" style="display:none;margin-top:16px">
+        <h3 style="margin-top:0">Дефицит по кластерам</h3>
+        <p class="muted">TODO в этапе G.3</p>
+      </div>
+    </div>
+
+    <!-- Правая колонка: виджеты (наполняем в G.4) -->
+    <div class="redist-sidebar" id="dpSidebar">
+      <div class="widget-card" id="dpWidgetSummary">
+        <h4 class="widget-title">Сводка распределения</h4>
+        <div class="widget-body" id="dpWidgetSummaryBody"><div class="widget-empty">Добавь артикул, чтобы увидеть распределение</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sticky bottom bar (в G.4) -->
+  <div id="dpBottomBar" class="redist-bottom-bar" style="display:none">
+    <div class="bottom-bar-info">
+      <span id="dpBbItems">0 артикулов</span>
+      <span class="bottom-bar-sep">·</span>
+      <span id="dpBbBoxes">0 коробок</span>
+      <span class="bottom-bar-sep">·</span>
+      <span id="dpBbTotal">0 шт</span>
+    </div>
+    <div class="bottom-bar-actions">
+      <button class="btn ghost" id="dpBbReset" type="button">Сбросить</button>
+      <button class="btn" id="dpBbAssemble" type="button">Собрать поставку</button>
+    </div>
+  </div>
 </section>
 
 <!-- ========== PROGRESS ========== -->
@@ -3319,6 +3488,504 @@ function renderAllWidgets() {
   try { renderWidgetCountdown(); } catch(e) {}
   try { renderWidgetInTransit(); } catch(e) {}
 }
+
+/* =========================================================
+   DELIVERY PLAN (Этап G.1) — Планировщик распределения
+   ========================================================= */
+
+// Состояние для плана поставки
+if (typeof state !== 'undefined' && !state.deliveryPlan) state.deliveryPlan = [];
+
+// Стратегия (отдельный ключ от перераспределения по плану пользователя)
+var DP_STRATEGY_KEY = 'postal_dp_strategy';
+var dpStrategy = (function() {
+  try {
+    var v = localStorage.getItem(DP_STRATEGY_KEY);
+    return (v === 'cost' || v === 'speed') ? v : 'speed';
+  } catch(e) { return 'speed'; }
+})();
+
+// Округ → репрезентативный город для getFastestWarehouse
+var OKRUG_CAPITAL = {
+  'ЦФО': 'Москва Центр',
+  'СЗФО': 'Санкт-Петербург',
+  'ПФО': 'Казань',
+  'УФО': 'Екатеринбург',
+  'СФО': 'Новосибирск',
+  'ДФО': 'Владивосток',
+  'ЮФО': 'Краснодар',
+  'СКФО': 'Невинномысск',
+};
+
+// Объединённые зоны для отображения и агрегации
+function mergedZone(okrug) {
+  if (okrug === 'СФО' || okrug === 'ДФО') return 'СФО+ДФО';
+  if (okrug === 'ЮФО' || okrug === 'СКФО') return 'ЮФО+СКФО';
+  return okrug;
+}
+
+// Выбрать склад в округе по стратегии
+function pickWarehouseForOkrug(okrug, strategy) {
+  // Разбираем объединённые зоны: берём все округа, находим лучший склад среди всех
+  var okrugs = [];
+  if (okrug === 'СФО+ДФО') okrugs = ['СФО', 'ДФО'];
+  else if (okrug === 'ЮФО+СКФО') okrugs = ['ЮФО', 'СКФО'];
+  else okrugs = [okrug];
+
+  if (strategy === 'cost') {
+    // Минимальный tariffCoef среди складов этих округов
+    var best = null;
+    Object.keys(WAREHOUSE_TARIFFS).forEach(function(whName) {
+      var info = WAREHOUSE_TARIFFS[whName];
+      if (okrugs.indexOf(info.federal) === -1) return;
+      if (!best || info.tariffCoef < best.tariffCoef) best = { name: whName, tariffCoef: info.tariffCoef };
+    });
+    return best ? best.name : null;
+  }
+  // speed: репрезентативный город + getFastestWarehouse
+  for (var i = 0; i < okrugs.length; i++) {
+    var city = OKRUG_CAPITAL[okrugs[i]];
+    if (!city || typeof getFastestWarehouse !== 'function') continue;
+    var fast = getFastestWarehouse(city);
+    if (fast && fast.name) return fast.name;
+  }
+  // Fallback к cost если skorost не сработала
+  return pickWarehouseForOkrug(okrug, 'cost');
+}
+
+// Получить набор округов, где у артикула СЕЙЧАС есть остаток
+function getStockOkrugsForNm(nmId) {
+  var set = {};
+  if (!state.stockRows || !state.stockRows.length) return set;
+  state.stockRows.forEach(function(r) {
+    if (String(r.nmId) !== String(nmId)) return;
+    if ((r.qty || 0) <= 0) return;
+    var info = WAREHOUSE_TARIFFS[r.warehouse];
+    if (!info) return;
+    set[info.federal] = true;
+  });
+  return set;
+}
+
+// Главный расчёт распределения
+function computeDeliveryDistribution(nmId, totalQty, strategy) {
+  strategy = strategy || dpStrategy;
+  var article = null;
+  if (state.articles && state.articles.length) {
+    for (var i = 0; i < state.articles.length; i++) {
+      if (String(state.articles[i].nmId) === String(nmId)) { article = state.articles[i]; break; }
+    }
+  }
+  if (!article) return { status: 'no-article', regions: [] };
+  var regionsMap = article.regions || {};
+  var hasOrders = article.orders > 0 && Object.keys(regionsMap).length > 0;
+  if (!hasOrders) return { status: 'no-history', regions: [] };
+
+  // Множество округов со стоком (для исключения локальных заказов)
+  var stockOkrugs = getStockOkrugsForNm(nmId);
+  var hasAnyStock = Object.keys(stockOkrugs).length > 0;
+
+  // Агрегируем по округам, исключая локальные (там, где уже есть остаток)
+  var byOkrug = {};
+  Object.keys(regionsMap).forEach(function(region) {
+    var ord = regionsMap[region] || 0;
+    if (ord <= 0) return;
+    var okrug = (typeof getOkrugForRegion === 'function') ? getOkrugForRegion(region) : null;
+    if (!okrug) return;
+    // Если в этом округе уже есть сток — это локальный заказ, пропускаем
+    if (hasAnyStock && stockOkrugs[okrug]) return;
+    var zoneKey = mergedZone(okrug);
+    byOkrug[zoneKey] = (byOkrug[zoneKey] || 0) + ord;
+  });
+
+  var totalOrders = Object.keys(byOkrug).reduce(function(s, k) { return s + byOkrug[k]; }, 0);
+  if (totalOrders === 0) {
+    // Все заказы локальные (уже покрыты из текущего стока)
+    return { status: 'all-local', regions: [] };
+  }
+
+  // Распределяем totalQty пропорционально
+  var rawDist = Object.keys(byOkrug).map(function(okrug) {
+    var orders = byOkrug[okrug];
+    var pct = orders / totalOrders;
+    return { okrug: okrug, orders: orders, pct: pct, qty: Math.floor(pct * totalQty) };
+  });
+  rawDist.sort(function(a, b) { return b.orders - a.orders; });
+
+  // Коррекция: раскидать остаток по крупнейшим округам
+  var distributed = rawDist.reduce(function(s, r) { return s + r.qty; }, 0);
+  var remainder = totalQty - distributed;
+  for (var j = 0; j < remainder && j < rawDist.length; j++) rawDist[j].qty++;
+
+  // Подбираем склад
+  rawDist.forEach(function(r) {
+    r.warehouse = pickWarehouseForOkrug(r.okrug, strategy) || '—';
+    r.warehouseEditable = false;
+  });
+
+  return { status: 'ok', regions: rawDist };
+}
+
+// Генератор уникальных ID
+function dpGenId() { return 'dp_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6); }
+
+// Автозаполнение Шт/коробка из кэша номенклатуры (nomen)
+function dpLookupPerBox(vendorCode, nmId) {
+  if (typeof window.nomen !== 'object' || !window.nomen) return null;
+  var keys = Object.keys(window.nomen);
+  for (var i = 0; i < keys.length; i++) {
+    var item = window.nomen[keys[i]];
+    if (!item) continue;
+    if (nmId && String(item.nmId) === String(nmId)) {
+      if (Array.isArray(item.sizes) && item.sizes.length) return null; // ростовка — без дефолта
+    }
+    if (vendorCode && (item.vendorCode || '').toLowerCase() === String(vendorCode).toLowerCase()) {
+      if (Array.isArray(item.sizes) && item.sizes.length) return null;
+    }
+  }
+  return null; // default — пусть вводит вручную
+}
+
+// Поиск brand/name в state.articles по nmId
+function dpFindArticleMeta(nmId) {
+  if (!state.articles) return null;
+  for (var i = 0; i < state.articles.length; i++) {
+    if (String(state.articles[i].nmId) === String(nmId)) {
+      return { brand: state.articles[i].brand || '', name: state.articles[i].name || '' };
+    }
+  }
+  return null;
+}
+
+// Рендер status pill
+function dpStatusPill(status) {
+  if (status === 'ok') return '<span class="dp-status-pill ok">Есть история</span>';
+  if (status === 'no-history') return '<span class="dp-status-pill warn">Нет истории</span>';
+  if (status === 'no-article') return '<span class="dp-status-pill bad">Не найден</span>';
+  if (status === 'all-local') return '<span class="dp-status-pill ok">Локальное покрытие</span>';
+  return '<span class="dp-status-pill">—</span>';
+}
+
+// Рендер основной таблицы запланированных артикулов
+function renderDpAddedTable() {
+  var wrap = document.getElementById('dpAddedWrap');
+  var tbody = document.getElementById('dpAddedTbody');
+  var countEl = document.getElementById('dpAddedCount');
+  if (!wrap || !tbody) return;
+
+  var items = state.deliveryPlan || [];
+  if (items.length === 0) {
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = '';
+  if (countEl) {
+    var totalShucks = items.reduce(function(s, it) { return s + (it.total || 0); }, 0);
+    countEl.textContent = '· ' + items.length + ' артикул' + (items.length === 1 ? '' : items.length < 5 ? 'а' : 'ов') + ' · ' + totalShucks + ' шт';
+  }
+
+  var html = items.map(function(it, i) {
+    var photo = (typeof getWbImageUrl === 'function') ? getWbImageUrl(it.nmId) : null;
+    var photoHtml = photo
+      ? '<img class="art-photo" src="' + photo + '" loading="lazy" onerror="this.style.display=\'none\'" style="width:32px;height:40px"/>'
+      : '<div class="art-photo-ph" style="width:32px;height:40px"></div>';
+    var statusCls = (it.distribution && it.distribution.status) || 'no-article';
+    var regionsCount = (it.distribution && it.distribution.regions) ? it.distribution.regions.length : 0;
+    var distBtnHtml = '';
+    if (statusCls === 'ok' && regionsCount > 0) {
+      distBtnHtml = '<button class="dp-show-dist-btn" data-dp-toggle="' + it.id + '">Показать →</button>';
+    } else if (statusCls === 'no-history') {
+      distBtnHtml = '<span class="muted" style="font-size:12px">Нужен аналог</span>';
+    } else if (statusCls === 'all-local') {
+      distBtnHtml = '<span class="muted" style="font-size:12px">Уже покрыто локально</span>';
+    } else {
+      distBtnHtml = '<span class="muted" style="font-size:12px">—</span>';
+    }
+    return '<tr data-dp-id="' + it.id + '">'
+      + '<td class="col-sticky col-s0"><input type="checkbox" class="dp-chk" data-dp-id="' + it.id + '"></td>'
+      + '<td class="col-sticky col-s1" style="color:var(--text-soft);left:30px">' + (i + 1) + '</td>'
+      + '<td><div style="display:flex;align-items:center;gap:10px">'
+      +   photoHtml
+      +   '<div><div style="font-weight:500;font-size:13px">' + (it.vendorCode || '—') + '</div>'
+      +   '<div class="muted" style="font-size:11px;font-family:\'JetBrains Mono\',monospace">' + (it.nmId || '—') + '</div></div>'
+      + '</div></td>'
+      + '<td class="num">' + it.boxes + '</td>'
+      + '<td class="num">' + it.perBox + '</td>'
+      + '<td class="num"><strong>' + it.total + '</strong></td>'
+      + '<td>' + dpStatusPill(statusCls) + '</td>'
+      + '<td><span class="muted" style="font-size:12px">' + (statusCls === 'no-history' ? 'G.2' : '—') + '</span></td>'
+      + '<td>' + distBtnHtml + '</td>'
+      + '<td style="white-space:nowrap">'
+      +   '<button class="act-btn act-del" type="button" title="Удалить" data-dp-remove="' + it.id + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'
+      + '</td>'
+      + '</tr>';
+  }).join('');
+
+  tbody.innerHTML = html;
+
+  // Обновляем summary widget
+  if (typeof renderDpSummary === 'function') renderDpSummary();
+}
+
+// Рендер раскрытой панели распределения (вставка под строку)
+function renderDpDistRow(itemId) {
+  var it = state.deliveryPlan.find(function(x) { return x.id === itemId; });
+  if (!it || !it.distribution || it.distribution.status !== 'ok') return null;
+
+  var regions = it.distribution.regions || [];
+  var totalOrders = regions.reduce(function(s, r) { return s + r.orders; }, 0);
+  var totalQty = regions.reduce(function(s, r) { return s + r.qty; }, 0);
+
+  // Для select складов в округе — список доступных
+  var whOptionsForOkrug = function(okrug) {
+    var okrugs = [];
+    if (okrug === 'СФО+ДФО') okrugs = ['СФО', 'ДФО'];
+    else if (okrug === 'ЮФО+СКФО') okrugs = ['ЮФО', 'СКФО'];
+    else okrugs = [okrug];
+    var list = [];
+    Object.keys(WAREHOUSE_TARIFFS).forEach(function(whName) {
+      if (okrugs.indexOf(WAREHOUSE_TARIFFS[whName].federal) !== -1) list.push(whName);
+    });
+    return list.sort();
+  };
+
+  var rowsHtml = regions.map(function(r) {
+    var opts = whOptionsForOkrug(r.okrug).map(function(wh) {
+      return '<option value="' + wh + '"' + (wh === r.warehouse ? ' selected' : '') + '>' + wh + '</option>';
+    }).join('');
+    return '<tr>'
+      + '<td>' + r.okrug + '</td>'
+      + '<td class="num">' + r.orders + '</td>'
+      + '<td class="num">' + Math.round(r.pct * 100) + '%</td>'
+      + '<td class="num"><input class="dp-qty-edit" data-dp-qty-item="' + it.id + '" data-dp-qty-okrug="' + r.okrug + '" type="number" value="' + r.qty + '" min="0"></td>'
+      + '<td><select class="dp-wh-select" data-dp-wh-item="' + it.id + '" data-dp-wh-okrug="' + r.okrug + '">' + opts + '</select></td>'
+      + '</tr>';
+  }).join('');
+
+  var html = '<tr class="dp-dist-row" data-dp-dist-for="' + it.id + '">'
+    + '<td colspan="10"><div class="dp-dist-wrap">'
+    + '<table class="dp-dist-table">'
+    + '<thead><tr><th>Округ</th><th class="num">Заказов</th><th class="num">%</th><th class="num">Распредел.</th><th>Склад</th></tr></thead>'
+    + '<tbody>' + rowsHtml + '</tbody>'
+    + '<tfoot><tr class="dp-dist-total-row"><td>ИТОГО</td><td class="num">' + totalOrders + '</td><td class="num">100%</td><td class="num" id="dpDistTotal_' + it.id + '">' + totalQty + '</td><td></td></tr></tfoot>'
+    + '</table>'
+    + '</div></td></tr>';
+
+  return html;
+}
+
+// Обновить summary в правой колонке (donut через widget пока упрощённый — в G.4 будет donut)
+function renderDpSummary() {
+  var body = document.getElementById('dpWidgetSummaryBody');
+  if (!body) return;
+  var items = state.deliveryPlan || [];
+  if (items.length === 0) {
+    body.innerHTML = '<div class="widget-empty">Добавь артикул, чтобы увидеть распределение</div>';
+    return;
+  }
+  var byOkrug = {};
+  var totalQty = 0;
+  items.forEach(function(it) {
+    if (!it.distribution || it.distribution.status !== 'ok') return;
+    it.distribution.regions.forEach(function(r) {
+      byOkrug[r.okrug] = (byOkrug[r.okrug] || 0) + r.qty;
+      totalQty += r.qty;
+    });
+  });
+  if (totalQty === 0) {
+    body.innerHTML = '<div class="widget-empty">Нет распределения (все локально?)</div>';
+    return;
+  }
+  var okrugs = Object.keys(byOkrug).sort(function(a, b) { return byOkrug[b] - byOkrug[a]; });
+  var html = '<div style="font-size:22px;font-weight:500;font-family:\'JetBrains Mono\',monospace;color:var(--text);margin-bottom:4px">' + totalQty + ' <span style="font-size:12px;color:var(--text-dim);font-weight:400">шт</span></div>';
+  html += '<div style="font-size:11px;color:var(--text-dim);margin-bottom:10px">' + items.length + ' артикул · ' + okrugs.length + ' округ</div>';
+  okrugs.forEach(function(okrug) {
+    var qty = byOkrug[okrug];
+    var pct = Math.round((qty / totalQty) * 100);
+    html += '<div class="okrug-row"><span class="okrug-name">' + okrug + '</span><span class="okrug-qty">' + qty + ' шт · ' + pct + '%</span></div>';
+  });
+  body.innerHTML = html;
+}
+
+// Применить стратегию (UI active state) + сохранить в localStorage
+function dpApplyStrategyUi() {
+  document.querySelectorAll('.strategy-opt[data-dp-strategy]').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.dpStrategy === dpStrategy);
+  });
+}
+
+// Пересчёт всех items при смене стратегии
+function dpRecomputeAllForStrategy() {
+  state.deliveryPlan.forEach(function(it) {
+    if (!it.distribution || it.distribution.status !== 'ok') return;
+    // Сохраняем ручные правки warehouseEditable
+    var edits = {};
+    it.distribution.regions.forEach(function(r) {
+      if (r.warehouseEditable) edits[r.okrug] = r.warehouse;
+    });
+    var fresh = computeDeliveryDistribution(it.nmId, it.total, dpStrategy);
+    if (fresh.status === 'ok') {
+      // Восстанавливаем ручные склады
+      fresh.regions.forEach(function(r) {
+        if (edits[r.okrug]) { r.warehouse = edits[r.okrug]; r.warehouseEditable = true; }
+      });
+    }
+    it.distribution = fresh;
+  });
+  renderDpAddedTable();
+}
+
+// ====== ОБРАБОТЧИКИ (инициализация один раз) ======
+(function initDeliveryPlanHandlers() {
+  function init() {
+    // Применяем стратегию к UI
+    dpApplyStrategyUi();
+
+    // Пересчёт Итого при изменении коробок/шт
+    var boxesEl = document.getElementById('dpBoxes');
+    var perBoxEl = document.getElementById('dpPerBox');
+    var totalEl = document.getElementById('dpTotal');
+    var recalcTotal = function() {
+      var b = Number(boxesEl.value) || 0;
+      var p = Number(perBoxEl.value) || 0;
+      totalEl.value = (b * p) || '';
+    };
+    if (boxesEl) boxesEl.addEventListener('input', recalcTotal);
+    if (perBoxEl) perBoxEl.addEventListener('input', recalcTotal);
+
+    // Переключатель стратегии
+    document.querySelectorAll('.strategy-opt[data-dp-strategy]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var next = btn.dataset.dpStrategy;
+        if (next === dpStrategy) return;
+        dpStrategy = next;
+        try { localStorage.setItem(DP_STRATEGY_KEY, next); } catch(e) {}
+        dpApplyStrategyUi();
+        dpRecomputeAllForStrategy();
+      });
+    });
+
+    // Добавить артикул
+    var addBtn = document.getElementById('dpAdd');
+    var hintEl = document.getElementById('dpHint');
+    if (addBtn) addBtn.addEventListener('click', function() {
+      var vc = (document.getElementById('dpVendorCode').value || '').trim();
+      var nmIdRaw = document.getElementById('dpNmId').value;
+      var nmId = Number(nmIdRaw);
+      var boxes = Number(boxesEl.value) || 0;
+      var perBox = Number(perBoxEl.value) || 0;
+      var total = boxes * perBox;
+      if (!nmId || !boxes || !perBox) {
+        if (hintEl) { hintEl.textContent = 'Заполни артикул WB, коробки и шт/коробка'; hintEl.style.color = 'var(--danger)'; }
+        return;
+      }
+      if (hintEl) { hintEl.textContent = ''; hintEl.style.color = ''; }
+
+      // Вычисляем распределение
+      var dist = computeDeliveryDistribution(nmId, total, dpStrategy);
+      // Берём brand/name из state.articles
+      var meta = dpFindArticleMeta(nmId) || { brand: '', name: '' };
+      var item = {
+        id: dpGenId(),
+        vendorCode: vc || '',
+        nmId: nmId,
+        boxes: boxes,
+        perBox: perBox,
+        total: total,
+        brand: meta.brand,
+        name: meta.name,
+        distribution: dist,
+      };
+      state.deliveryPlan.push(item);
+      renderDpAddedTable();
+      // Очищаем форму (nmId и vendorCode), но оставляем коробки/perBox для удобства
+      document.getElementById('dpVendorCode').value = '';
+      document.getElementById('dpNmId').value = '';
+      document.getElementById('dpVendorCode').focus();
+    });
+
+    // Очистить список
+    var clearBtn = document.getElementById('dpClear');
+    if (clearBtn) clearBtn.addEventListener('click', function() {
+      if (!state.deliveryPlan.length) return;
+      if (!confirm('Очистить весь список запланированных артикулов?')) return;
+      state.deliveryPlan = [];
+      renderDpAddedTable();
+    });
+
+    // Делегирование: раскрытие распределения + удаление
+    var tbody = document.getElementById('dpAddedTbody');
+    if (tbody) tbody.addEventListener('click', function(e) {
+      var toggleBtn = e.target.closest('[data-dp-toggle]');
+      if (toggleBtn) {
+        var itemId = toggleBtn.dataset.dpToggle;
+        var existingRow = tbody.querySelector('[data-dp-dist-for="' + itemId + '"]');
+        if (existingRow) {
+          existingRow.remove();
+          toggleBtn.classList.remove('expanded');
+          toggleBtn.textContent = 'Показать →';
+        } else {
+          var distHtml = renderDpDistRow(itemId);
+          if (distHtml) {
+            var mainRow = tbody.querySelector('tr[data-dp-id="' + itemId + '"]');
+            if (mainRow) {
+              var tmp = document.createElement('tbody');
+              tmp.innerHTML = distHtml;
+              mainRow.parentNode.insertBefore(tmp.firstChild, mainRow.nextSibling);
+              toggleBtn.classList.add('expanded');
+              toggleBtn.textContent = 'Скрыть ←';
+            }
+          }
+        }
+        return;
+      }
+      var removeBtn = e.target.closest('[data-dp-remove]');
+      if (removeBtn) {
+        var rid = removeBtn.dataset.dpRemove;
+        state.deliveryPlan = state.deliveryPlan.filter(function(x) { return x.id !== rid; });
+        renderDpAddedTable();
+      }
+    });
+
+    // Делегирование: изменение qty / склада в раскрытой таблице
+    if (tbody) tbody.addEventListener('change', function(e) {
+      if (e.target && e.target.classList.contains('dp-wh-select')) {
+        var itId = e.target.dataset.dpWhItem;
+        var okr = e.target.dataset.dpWhOkrug;
+        var it = state.deliveryPlan.find(function(x) { return x.id === itId; });
+        if (!it || !it.distribution) return;
+        var reg = it.distribution.regions.find(function(r) { return r.okrug === okr; });
+        if (reg) { reg.warehouse = e.target.value; reg.warehouseEditable = true; }
+      }
+    });
+
+    if (tbody) tbody.addEventListener('input', function(e) {
+      if (e.target && e.target.classList.contains('dp-qty-edit')) {
+        var itId = e.target.dataset.dpQtyItem;
+        var okr = e.target.dataset.dpQtyOkrug;
+        var it = state.deliveryPlan.find(function(x) { return x.id === itId; });
+        if (!it || !it.distribution) return;
+        var reg = it.distribution.regions.find(function(r) { return r.okrug === okr; });
+        if (reg) {
+          reg.qty = Math.max(0, Number(e.target.value) || 0);
+          var total = it.distribution.regions.reduce(function(s, r) { return s + r.qty; }, 0);
+          var totalEl = document.getElementById('dpDistTotal_' + itId);
+          if (totalEl) {
+            totalEl.textContent = total;
+            totalEl.style.color = (total === it.total) ? '' : 'var(--warn)';
+            totalEl.title = (total === it.total) ? '' : 'Сумма ' + total + ' ≠ Итого ' + it.total;
+          }
+          renderDpSummary();
+        }
+      }
+    });
+  }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(init, 50);
+  } else {
+    window.addEventListener('DOMContentLoaded', init);
+  }
+})();
 
 function renderRedistTasks(result) {
   const { tasks, unresolved } = result;
