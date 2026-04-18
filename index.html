@@ -794,6 +794,105 @@
     color: var(--text-soft); white-space: nowrap;
   }
 
+  /* Дефицит по кластерам (G.3) */
+  .dp-def-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .dp-def-chip {
+    padding: 4px 12px; border-radius: 100px; font-size: 12px;
+    background: var(--surface-2); color: var(--text-dim);
+    border: 0.5px solid var(--border); cursor: pointer;
+    transition: background 150ms, color 150ms, border-color 150ms;
+    white-space: nowrap;
+    font-family: inherit; font-weight: 500;
+  }
+  .dp-def-chip:hover { color: var(--text); }
+  .dp-def-chip.active {
+    background: var(--accent-soft); color: var(--accent);
+    border-color: var(--accent-border);
+  }
+  .dp-def-chip.chip-all.active {
+    background: var(--accent); color: var(--text-on-accent, #fff);
+    border-color: var(--accent);
+  }
+
+  .dp-def-scroll { overflow-x: auto; }
+  .dp-def-table {
+    border-collapse: separate; border-spacing: 0;
+    width: 100%; min-width: 100%;
+    font-size: 12px;
+  }
+  .dp-def-table thead th {
+    background: var(--surface); color: var(--text-dim);
+    font-weight: 500; font-size: 11px; text-align: left;
+    padding: 8px 10px; border-bottom: 0.5px solid var(--border);
+    white-space: nowrap;
+    position: sticky; top: 0; z-index: 3;
+  }
+  .dp-def-table thead th.dp-def-group {
+    text-align: center; border-bottom: 0.5px solid var(--border);
+    background: var(--surface-2);
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .dp-def-table thead th.dp-def-group.okr-all { background: var(--accent-soft); color: var(--accent); }
+  .dp-def-table tbody td {
+    padding: 8px 10px; border-bottom: 0.5px solid var(--surface-3);
+    font-size: 12px; white-space: nowrap;
+  }
+  .dp-def-table tbody tr:hover td { background: var(--surface-2); }
+  .dp-def-table tr.dp-def-total td {
+    font-weight: 600; background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+  }
+  .dp-def-table tr.dp-def-total:hover td { background: var(--surface-2); }
+
+  /* Sticky первые 5 колонок */
+  .dp-def-sticky { position: sticky; z-index: 2; background: var(--surface); }
+  .dp-def-table tbody tr:nth-child(even) .dp-def-sticky,
+  .dp-def-table tbody tr:hover .dp-def-sticky { background: var(--surface-2); }
+  .dp-def-table tr.dp-def-total .dp-def-sticky { background: var(--surface-2); z-index: 3; }
+  .dp-def-table thead .dp-def-sticky { z-index: 5; }
+
+  .dp-def-col-s0 { left: 0; width: 30px; min-width: 30px; }
+  .dp-def-col-s1 { left: 30px; width: 48px; min-width: 48px; }
+  .dp-def-col-s2 { left: 78px; min-width: 140px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+  .dp-def-col-s3 { left: 238px; min-width: 90px; }
+  .dp-def-col-s4 { left: 328px; min-width: 80px; }
+
+  .dp-def-num {
+    text-align: right; font-variant-numeric: tabular-nums;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .dp-def-need-pos { color: var(--danger); font-weight: 600; }
+  .dp-def-need-warn { color: var(--warn); }
+  .dp-def-need-zero { color: var(--text-soft); }
+  .dp-def-def-cell { font-weight: 600; color: var(--danger); }
+  .dp-def-def-cell.zero { color: var(--ok); font-weight: normal; }
+  .dp-def-def-cell-sub { font-size: 10px; color: var(--text-dim); font-weight: normal; }
+
+  .dp-def-add-btn {
+    background: none; border: 0.5px solid var(--border);
+    color: var(--accent); cursor: pointer;
+    padding: 3px 8px; border-radius: 4px;
+    font-size: 11px; font-family: inherit; font-weight: 500;
+    transition: background 150ms;
+    white-space: nowrap;
+  }
+  .dp-def-add-btn:hover { background: var(--accent-soft); }
+
+  .dp-def-row-toggle {
+    cursor: pointer; user-select: none;
+    color: var(--text-dim); font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+  }
+  .dp-def-size-row td {
+    background: var(--bg-tertiary, var(--surface-2)) !important;
+    font-size: 11px; color: var(--text-dim);
+  }
+  .dp-def-size-row .dp-def-num { color: var(--text); }
+  .dp-def-empty {
+    padding: 30px; text-align: center;
+    color: var(--text-dim); font-size: 13px;
+  }
+
   h2 {
     font-size: 22px; font-weight: 500; margin-bottom: 6px; letter-spacing: -0.01em; color: var(--text);
   }
@@ -1447,10 +1546,34 @@ C-340,4,132,12,46.21"></textarea>
         </div>
       </div>
 
-      <!-- БЛОК 2: дефицит — пустая заглушка до G.3 -->
-      <div class="card" id="dpDeficitWrap" style="display:none;margin-top:16px">
-        <h3 style="margin-top:0">Дефицит по кластерам</h3>
-        <p class="muted">TODO в этапе G.3</p>
+      <!-- БЛОК 2: Дефицит по кластерам (G.3) -->
+      <div class="card" id="dpDeficitWrap" style="margin-top:16px">
+        <div class="redist-card-head">
+          <div>
+            <h3 style="margin:0">Дефицит по кластерам</h3>
+            <p class="muted" id="dpDefSummary" style="margin:2px 0 0;font-size:12px">Нет данных — загрузите кабинет или demo</p>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-end">
+            <div>
+              <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:2px">Период продаж</label>
+              <div style="display:flex;align-items:center;gap:4px">
+                <input type="number" id="dpDefPeriodDays" value="30" min="7" max="90" style="width:58px;padding:4px 6px;font-size:12px">
+                <span class="muted" style="font-size:11px">дн</span>
+              </div>
+            </div>
+            <div>
+              <label style="font-size:10px;color:var(--text-dim);display:block;margin-bottom:2px">Прогноз</label>
+              <div style="display:flex;align-items:center;gap:4px">
+                <input type="number" id="dpDefForecastDays" value="30" min="7" max="90" style="width:58px;padding:4px 6px;font-size:12px">
+                <span class="muted" style="font-size:11px">дн</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dp-def-chips" id="dpDefChips" style="margin:12px 0 10px"></div>
+        <div class="dp-def-scroll">
+          <table class="redist-table dp-def-table" id="dpDefTable"></table>
+        </div>
       </div>
     </div>
 
@@ -2404,6 +2527,7 @@ document.querySelectorAll('.sidebar-item').forEach(function(btn) {
     if (title && label) title.textContent = label.textContent;
     // Перерисовать KPI при входе на вкладку «Перераспределение»
     if (btn.dataset.tab === 'redist' && typeof renderRedistKpi === 'function') renderRedistKpi();
+    if (btn.dataset.tab === 'delivery-plan' && typeof renderDpDeficitTable === 'function') renderDpDeficitTable();
     // На мобильном — закрыть sidebar
     var sb = document.getElementById('sidebar');
     if (sb) sb.classList.remove('mobile-open');
@@ -3954,6 +4078,354 @@ function dpApplyStrategyUi() {
   });
 }
 
+/* =========================================================
+   ДЕФИЦИТ ПО КЛАСТЕРАМ (G.3)
+   ========================================================= */
+
+// Порядок округов для колонок + "ВСЕ" вначале
+var DP_DEF_OKRUGS_ALL = ['ALL', 'ЦФО', 'СЗФО', 'ПФО', 'УФО', 'СФО+ДФО', 'ЮФО+СКФО'];
+
+// Состояние UI дефицита
+var dpDefState = {
+  expandedNmIds: {}, // {nmId: true}
+  activeOkrugs: null, // null = ALL
+};
+
+// Приведение региона к округу с применением OKRUG_ZONES
+function dpOkrugForRegion(region) {
+  if (typeof getOkrugForRegion !== 'function') return null;
+  var ok = getOkrugForRegion(region);
+  if (!ok) return null;
+  return mergedZone(ok);
+}
+
+// Размеры артикула по state (и stockRows)
+function dpGetSizesForArticle(nmId) {
+  var sizes = {};
+  // Собираем из stockRows (size → stock)
+  if (state.stockRows && state.stockRows.length) {
+    state.stockRows.forEach(function(r) {
+      if (String(r.nmId) !== String(nmId)) return;
+      var sz = r.size || 'one';
+      if (!sizes[sz]) sizes[sz] = { size: sz, stock: 0, byOkrug: {} };
+      sizes[sz].stock += (r.qty || 0);
+      var info = WAREHOUSE_TARIFFS[r.warehouse];
+      if (info) {
+        var ok = mergedZone(info.federal);
+        if (!sizes[sz].byOkrug[ok]) sizes[sz].byOkrug[ok] = 0;
+        sizes[sz].byOkrug[ok] += (r.qty || 0);
+      }
+    });
+  }
+  return sizes;
+}
+
+// Главный расчёт дефицита по артикулам × округам
+function computeDeficitTable(periodDays, forecastDays) {
+  periodDays = periodDays || 30;
+  forecastDays = forecastDays || 30;
+  var articles = state.articles || [];
+  if (!articles.length) {
+    return { rows: [], total: null, modelsCount: 0, sizesCount: 0 };
+  }
+
+  var factor = forecastDays / periodDays; // множитель прогноза
+  var okrugsSet = {};
+
+  var rows = articles.map(function(a) {
+    // Sales по округам
+    var byOkrug = {};
+    var totalSales = 0;
+    Object.keys(a.regions || {}).forEach(function(region) {
+      var n = a.regions[region] || 0;
+      if (n <= 0) return;
+      var ok = dpOkrugForRegion(region);
+      if (!ok) return;
+      okrugsSet[ok] = true;
+      if (!byOkrug[ok]) byOkrug[ok] = { sales: 0, stock: 0, need: 0 };
+      byOkrug[ok].sales += n;
+      totalSales += n;
+    });
+    // Stock по округам (агрегат по ROW где совпадает nmId)
+    var totalStock = 0;
+    (state.stockRows || []).forEach(function(r) {
+      if (String(r.nmId) !== String(a.nmId)) return;
+      var info = WAREHOUSE_TARIFFS[r.warehouse];
+      if (!info) return;
+      var ok = mergedZone(info.federal);
+      okrugsSet[ok] = true;
+      if (!byOkrug[ok]) byOkrug[ok] = { sales: 0, stock: 0, need: 0 };
+      byOkrug[ok].stock += (r.qty || 0);
+      totalStock += (r.qty || 0);
+    });
+    // Рассчитываем need для каждого округа
+    var totalNeed = 0;
+    var maxNeedOkrug = null, maxNeedVal = 0;
+    Object.keys(byOkrug).forEach(function(ok) {
+      var cell = byOkrug[ok];
+      cell.need = Math.max(0, Math.ceil(cell.sales * factor) - cell.stock);
+      totalNeed += cell.need;
+      if (cell.need > maxNeedVal) { maxNeedVal = cell.need; maxNeedOkrug = ok; }
+    });
+    return {
+      nmId: a.nmId,
+      name: a.name || '',
+      brand: a.brand || '',
+      totalSales: totalSales,
+      totalStock: totalStock,
+      totalNeed: totalNeed,
+      maxNeedOkrug: maxNeedOkrug,
+      maxNeedVal: maxNeedVal,
+      byOkrug: byOkrug,
+      overall: { sales: totalSales, stock: totalStock, need: Math.max(0, Math.ceil(totalSales * factor) - totalStock) },
+    };
+  });
+
+  // Сортировка — по totalNeed desc, затем по продажам
+  rows.sort(function(a, b) {
+    if (b.totalNeed !== a.totalNeed) return b.totalNeed - a.totalNeed;
+    return b.totalSales - a.totalSales;
+  });
+
+  // Итоговая строка
+  var total = { sales: 0, stock: 0, need: 0, byOkrug: {} };
+  rows.forEach(function(r) {
+    total.sales += r.totalSales;
+    total.stock += r.totalStock;
+    total.need += r.totalNeed;
+    Object.keys(r.byOkrug).forEach(function(ok) {
+      if (!total.byOkrug[ok]) total.byOkrug[ok] = { sales: 0, stock: 0, need: 0 };
+      total.byOkrug[ok].sales += r.byOkrug[ok].sales;
+      total.byOkrug[ok].stock += r.byOkrug[ok].stock;
+      total.byOkrug[ok].need += r.byOkrug[ok].need;
+    });
+  });
+
+  // Количество размеров: уникальные (nmId|size) из stockRows/orderRows
+  var sizePairs = {};
+  (state.stockRows || []).forEach(function(r) { sizePairs[r.nmId + '|' + (r.size || 'one')] = true; });
+  var sizesCount = Object.keys(sizePairs).length;
+
+  return {
+    rows: rows, total: total,
+    modelsCount: rows.length, sizesCount: sizesCount,
+    factor: factor,
+  };
+}
+
+function dpNeedClass(needVal, sales, factor) {
+  if (!needVal || needVal <= 0) return 'dp-def-need-zero';
+  var projected = Math.ceil((sales || 0) * (factor || 1));
+  if (projected > 0 && needVal / projected > 0.5) return 'dp-def-need-pos';
+  return 'dp-def-need-warn';
+}
+
+function dpDefCellHtml(cell, factor) {
+  if (!cell) return '<td class="dp-def-num dp-def-need-zero">—</td><td class="dp-def-num dp-def-need-zero">—</td><td class="dp-def-num dp-def-need-zero">—</td>';
+  var needCls = dpNeedClass(cell.need, cell.sales, factor);
+  return '<td class="dp-def-num">' + (cell.sales || 0) + '</td>'
+    + '<td class="dp-def-num">' + (cell.stock || 0) + '</td>'
+    + '<td class="dp-def-num ' + needCls + '">' + (cell.need || 0) + '</td>';
+}
+
+// Рендер таблицы дефицита
+function renderDpDeficitTable() {
+  var summaryEl = document.getElementById('dpDefSummary');
+  var chipsEl = document.getElementById('dpDefChips');
+  var tableEl = document.getElementById('dpDefTable');
+  if (!tableEl) return;
+
+  var periodDays = Number(document.getElementById('dpDefPeriodDays').value) || 30;
+  var forecastDays = Number(document.getElementById('dpDefForecastDays').value) || 30;
+
+  var data = computeDeficitTable(periodDays, forecastDays);
+  if (!data.rows.length) {
+    tableEl.innerHTML = '<tr><td><div class="dp-def-empty">Нет данных. Загрузите кабинет или нажмите «Загрузить demo» в разделе «Настройка».</div></td></tr>';
+    if (summaryEl) summaryEl.textContent = 'Нет данных — загрузите кабинет или demo';
+    if (chipsEl) chipsEl.innerHTML = '';
+    return;
+  }
+
+  if (summaryEl) {
+    summaryEl.textContent = data.modelsCount + ' моделей · ' + data.sizesCount + ' размеров · Общий прогноз: ' + data.total.need.toLocaleString('ru-RU') + ' шт';
+  }
+
+  // Чипы округов — выбираем из DP_DEF_OKRUGS_ALL только те, где есть данные
+  var present = {};
+  data.rows.forEach(function(r) { Object.keys(r.byOkrug).forEach(function(k) { present[k] = true; }); });
+  var activeOkrugs = dpDefState.activeOkrugs;
+  if (chipsEl) {
+    var chipsHtml = '';
+    DP_DEF_OKRUGS_ALL.forEach(function(ok) {
+      if (ok !== 'ALL' && !present[ok]) return;
+      var label = ok === 'ALL' ? 'Все округа' : ok;
+      var isActive = (activeOkrugs === null && ok === 'ALL') || (activeOkrugs && activeOkrugs[ok]);
+      chipsHtml += '<button class="dp-def-chip' + (ok === 'ALL' ? ' chip-all' : '') + (isActive ? ' active' : '') + '" data-dp-chip="' + ok + '" type="button">' + label + '</button>';
+    });
+    chipsEl.innerHTML = chipsHtml;
+  }
+
+  // Какие округа показывать в колонках
+  var columnOkrugs = activeOkrugs === null
+    ? DP_DEF_OKRUGS_ALL.filter(function(k) { return k !== 'ALL' && present[k]; })
+    : Object.keys(activeOkrugs).filter(function(k) { return activeOkrugs[k]; });
+
+  // Шапка: 2 уровня
+  var theadHtml = '';
+  // Уровень 1: группы
+  theadHtml += '<tr>'
+    + '<th class="dp-def-sticky dp-def-col-s0" rowspan="2"></th>'
+    + '<th class="dp-def-sticky dp-def-col-s1" rowspan="2">Фото</th>'
+    + '<th class="dp-def-sticky dp-def-col-s2" rowspan="2">Название</th>'
+    + '<th class="dp-def-sticky dp-def-col-s3" rowspan="2">Артикул</th>'
+    + '<th class="dp-def-sticky dp-def-col-s4" rowspan="2">Размеры</th>'
+    + '<th class="dp-def-group okr-all" colspan="3">ВСЕ КЛАСТЕРЫ</th>';
+  columnOkrugs.forEach(function(ok) {
+    theadHtml += '<th class="dp-def-group" colspan="3">' + ok + '</th>';
+  });
+  theadHtml += '</tr>';
+  // Уровень 2: П/О/Н
+  theadHtml += '<tr>';
+  for (var g = 0; g <= columnOkrugs.length; g++) {
+    theadHtml += '<th class="dp-def-num">Прод</th><th class="dp-def-num">Ост</th><th class="dp-def-num">Нужно</th>';
+  }
+  theadHtml += '</tr>';
+
+  // Итоговая строка
+  var totalsHtml = '<tr class="dp-def-total">'
+    + '<td class="dp-def-sticky dp-def-col-s0"></td>'
+    + '<td class="dp-def-sticky dp-def-col-s1"></td>'
+    + '<td class="dp-def-sticky dp-def-col-s2">ИТОГО</td>'
+    + '<td class="dp-def-sticky dp-def-col-s3" colspan="2">' + data.modelsCount + ' арт · ' + data.sizesCount + ' разм</td>';
+  // ВСЕ колонки
+  totalsHtml += '<td class="dp-def-num">' + data.total.sales + '</td>'
+    + '<td class="dp-def-num">' + data.total.stock + '</td>'
+    + '<td class="dp-def-num ' + dpNeedClass(data.total.need, data.total.sales, data.factor) + '">' + data.total.need + '</td>';
+  columnOkrugs.forEach(function(ok) {
+    totalsHtml += dpDefCellHtml(data.total.byOkrug[ok], data.factor);
+  });
+  totalsHtml += '</tr>';
+
+  // Строки артикулов
+  var rowsHtml = data.rows.map(function(r, idx) {
+    var photo = (typeof getWbImageUrl === 'function') ? getWbImageUrl(r.nmId) : null;
+    var photoHtml = photo
+      ? '<img class="art-photo" src="' + photo + '" loading="lazy" onerror="this.style.display=\'none\'" style="width:30px;height:38px;border-radius:4px"/>'
+      : '<div class="art-photo-ph" style="width:30px;height:38px;border-radius:4px"></div>';
+    // Размеры — подсчёт уникальных размеров этого артикула
+    var szSet = {};
+    (state.stockRows || []).forEach(function(s) {
+      if (String(s.nmId) === String(r.nmId)) szSet[s.size || 'one'] = true;
+    });
+    var szCount = Object.keys(szSet).length;
+    var isExpanded = !!dpDefState.expandedNmIds[r.nmId];
+    var defCellCls = r.totalNeed > 0 ? 'dp-def-def-cell' : 'dp-def-def-cell zero';
+    var deficitLabel = r.totalNeed > 0
+      ? (r.maxNeedOkrug || '—') + '<div class="dp-def-def-cell-sub">' + r.totalNeed + ' шт</div>'
+      : '0 <div class="dp-def-def-cell-sub">покрыто</div>';
+
+    var tr = '<tr data-dp-def-nm="' + r.nmId + '">'
+      + '<td class="dp-def-sticky dp-def-col-s0"><input type="checkbox" class="dp-chk" data-dp-def-nm-chk="' + r.nmId + '"></td>'
+      + '<td class="dp-def-sticky dp-def-col-s1">' + photoHtml + '</td>'
+      + '<td class="dp-def-sticky dp-def-col-s2" title="' + (r.name || '') + '"><div style="max-width:160px;overflow:hidden;text-overflow:ellipsis">'
+      +   '<span class="dp-def-row-toggle" data-dp-def-toggle="' + r.nmId + '" title="Показать размеры">' + (isExpanded ? '▾' : '▸') + '</span> '
+      +   (r.name || '—')
+      + '</div></td>'
+      + '<td class="dp-def-sticky dp-def-col-s3" style="font-family:\'JetBrains Mono\',monospace;font-size:11px">' + r.nmId
+      +   '<div><button class="dp-def-add-btn" data-dp-def-add="' + r.nmId + '" type="button">+ В план</button></div>'
+      + '</td>'
+      + '<td class="dp-def-sticky dp-def-col-s4">'
+      +   '<span class="' + defCellCls + '">' + deficitLabel + '</span>'
+      + '</td>'
+      // ВСЕ
+      + '<td class="dp-def-num">' + r.overall.sales + '</td>'
+      + '<td class="dp-def-num">' + r.overall.stock + '</td>'
+      + '<td class="dp-def-num ' + dpNeedClass(r.overall.need, r.overall.sales, data.factor) + '">' + r.overall.need + '</td>';
+    columnOkrugs.forEach(function(ok) {
+      tr += dpDefCellHtml(r.byOkrug[ok], data.factor);
+    });
+    tr += '</tr>';
+
+    // Раскрытая часть с размерами
+    if (isExpanded) {
+      var sizes = dpGetSizesForArticle(r.nmId);
+      var szNames = Object.keys(sizes);
+      if (szNames.length === 0) {
+        var emptySpan = 5 + 3 * (1 + columnOkrugs.length);
+        tr += '<tr class="dp-def-size-row"><td colspan="' + emptySpan + '" style="font-style:italic">Нет размеров (нет stockRows)</td></tr>';
+      } else {
+        // Для каждого размера: sales(size) = totalSales * stock(size) / totalStock (пропорционально)
+        szNames.sort();
+        szNames.forEach(function(sz) {
+          var szData = sizes[sz];
+          var szShareStock = r.totalStock > 0 ? (szData.stock / r.totalStock) : 0;
+          var szSalesTotal = Math.round(r.totalSales * szShareStock);
+          var szNeedTotal = Math.max(0, Math.ceil(szSalesTotal * data.factor) - szData.stock);
+          tr += '<tr class="dp-def-size-row">'
+            + '<td class="dp-def-sticky dp-def-col-s0"></td>'
+            + '<td class="dp-def-sticky dp-def-col-s1"></td>'
+            + '<td class="dp-def-sticky dp-def-col-s2" style="padding-left:28px" title="Расчёт оценочный (делим по долям stock)">↳ ' + sz + '</td>'
+            + '<td class="dp-def-sticky dp-def-col-s3"></td>'
+            + '<td class="dp-def-sticky dp-def-col-s4">—</td>'
+            + '<td class="dp-def-num">' + szSalesTotal + '</td>'
+            + '<td class="dp-def-num">' + szData.stock + '</td>'
+            + '<td class="dp-def-num ' + dpNeedClass(szNeedTotal, szSalesTotal, data.factor) + '">' + szNeedTotal + '</td>';
+          columnOkrugs.forEach(function(ok) {
+            var okStock = szData.byOkrug[ok] || 0;
+            var okCell = r.byOkrug[ok];
+            var okShareStock = (okCell && okCell.stock > 0) ? (okStock / okCell.stock) : 0;
+            var okSales = okCell ? Math.round(okCell.sales * (r.totalStock > 0 ? (szData.stock / r.totalStock) : 0)) : 0;
+            var okNeed = Math.max(0, Math.ceil(okSales * data.factor) - okStock);
+            tr += '<td class="dp-def-num">' + okSales + '</td>'
+              + '<td class="dp-def-num">' + okStock + '</td>'
+              + '<td class="dp-def-num ' + dpNeedClass(okNeed, okSales, data.factor) + '">' + okNeed + '</td>';
+          });
+          tr += '</tr>';
+        });
+      }
+    }
+    return tr;
+  }).join('');
+
+  tableEl.innerHTML = '<thead>' + theadHtml + '</thead><tbody>' + totalsHtml + rowsHtml + '</tbody>';
+}
+
+// Добавить артикул из Блока 2 в Блок 1
+function dpAddFromDeficit(nmId) {
+  var a = dpFindArticle(nmId);
+  if (!a) return;
+  var periodDays = Number(document.getElementById('dpDefPeriodDays').value) || 30;
+  var forecastDays = Number(document.getElementById('dpDefForecastDays').value) || 30;
+  var data = computeDeficitTable(periodDays, forecastDays);
+  var row = data.rows.find(function(r) { return String(r.nmId) === String(nmId); });
+  if (!row || row.totalNeed <= 0) {
+    alert('У артикула ' + nmId + ' нет дефицита.');
+    return;
+  }
+  var total = row.totalNeed;
+  var perBox = Math.min(20, total); // MVP: дефолт — макс 20 шт/кор
+  var boxes = Math.max(1, Math.ceil(total / perBox));
+  // Приводим итог точно к total: меняем perBox
+  perBox = Math.ceil(total / boxes);
+  var meta = dpFindArticleMeta(nmId) || { brand: '', name: '' };
+  var item = {
+    id: dpGenId(),
+    vendorCode: '',
+    nmId: Number(nmId),
+    boxes: boxes,
+    perBox: perBox,
+    total: boxes * perBox,
+    brand: meta.brand,
+    name: meta.name,
+    distribution: computeDeliveryDistribution(Number(nmId), boxes * perBox, dpStrategy),
+  };
+  state.deliveryPlan.push(item);
+  renderDpAddedTable();
+  if (typeof showUndoToast === 'function') {
+    showUndoToast('Добавлен артикул ' + nmId + ' (+' + item.total + ' шт)', null, 3000);
+  }
+}
+
 // Пересчёт всех items при смене стратегии
 function dpRecomputeAllForStrategy() {
   state.deliveryPlan.forEach(function(it) {
@@ -4130,6 +4602,57 @@ function dpRecomputeAllForStrategy() {
       if (e.target.closest('.dp-analog-dropdown')) return;
       document.querySelectorAll('[data-dp-analog-menu]').forEach(function(m) { m.classList.add('hidden'); });
     });
+
+    // G.3: обработчики для таблицы дефицита
+    var periodEl = document.getElementById('dpDefPeriodDays');
+    var forecastEl = document.getElementById('dpDefForecastDays');
+    if (periodEl) periodEl.addEventListener('change', renderDpDeficitTable);
+    if (forecastEl) forecastEl.addEventListener('change', renderDpDeficitTable);
+
+    // Чипы округов
+    var chipsEl = document.getElementById('dpDefChips');
+    if (chipsEl) chipsEl.addEventListener('click', function(e) {
+      var chip = e.target.closest('[data-dp-chip]');
+      if (!chip) return;
+      var ok = chip.dataset.dpChip;
+      if (ok === 'ALL') {
+        dpDefState.activeOkrugs = null; // все
+      } else {
+        if (!dpDefState.activeOkrugs) {
+          // Если сейчас ALL, то переключаемся на выбранный только
+          dpDefState.activeOkrugs = {};
+          dpDefState.activeOkrugs[ok] = true;
+        } else {
+          // Toggle
+          dpDefState.activeOkrugs[ok] = !dpDefState.activeOkrugs[ok];
+          // Если все сняты → вернуться на ALL
+          var anyActive = Object.keys(dpDefState.activeOkrugs).some(function(k) { return dpDefState.activeOkrugs[k]; });
+          if (!anyActive) dpDefState.activeOkrugs = null;
+        }
+      }
+      renderDpDeficitTable();
+    });
+
+    // Таблица дефицита: раскрытие по размерам + "+ В план"
+    var defTable = document.getElementById('dpDefTable');
+    if (defTable) defTable.addEventListener('click', function(e) {
+      var toggle = e.target.closest('[data-dp-def-toggle]');
+      if (toggle) {
+        var nm = toggle.dataset.dpDefToggle;
+        dpDefState.expandedNmIds[nm] = !dpDefState.expandedNmIds[nm];
+        renderDpDeficitTable();
+        return;
+      }
+      var addBtn = e.target.closest('[data-dp-def-add]');
+      if (addBtn) {
+        e.stopPropagation();
+        dpAddFromDeficit(addBtn.dataset.dpDefAdd);
+        return;
+      }
+    });
+
+    // Первый рендер таблицы (если данные уже есть)
+    setTimeout(renderDpDeficitTable, 100);
 
     // Делегирование: поиск в dropdown аналогов
     if (tbody) tbody.addEventListener('input', function(e) {
