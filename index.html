@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <style>
   :root {
     --bg: #F5F6F8;
@@ -515,6 +516,108 @@
   }
   .transit-nm { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
   .transit-route { color: var(--text-soft); font-size: 11px; }
+
+  /* Widget: Sparkline (Динамика ИЛ) */
+  .sparkline-wrap { position: relative; height: 80px; width: 100%; }
+  .sparkline-wrap canvas { width: 100% !important; height: 80px !important; }
+  .trend-info {
+    display: flex; align-items: baseline; gap: 6px;
+    margin-top: 8px; font-size: 12px;
+  }
+  .trend-delta {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600; font-size: 13px;
+  }
+  .trend-delta.down { color: var(--ok); }
+  .trend-delta.up { color: var(--danger); }
+  .trend-delta.flat { color: var(--text-dim); }
+  .trend-period { color: var(--text-dim); }
+
+  /* Widget: Donut (Остатки по округам) */
+  .donut-wrap {
+    position: relative; height: 160px; width: 100%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .donut-wrap canvas { max-height: 160px; }
+  .donut-center {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    pointer-events: none;
+  }
+  .donut-center-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 18px; font-weight: 500; color: var(--text);
+    letter-spacing: -0.01em; line-height: 1.1;
+  }
+  .donut-center-label {
+    font-size: 11px; color: var(--text-dim); margin-top: 2px;
+  }
+  .okrug-legend {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 4px 8px; margin-top: 12px; font-size: 12px;
+  }
+  .okrug-legend-item {
+    display: flex; align-items: center; gap: 6px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .okrug-legend-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .okrug-legend-name { color: var(--text); flex-shrink: 0; }
+  .okrug-legend-qty {
+    color: var(--text-dim); font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; margin-left: auto;
+  }
+
+  /* Widget: Countdown + progress */
+  .countdown-timer {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 20px; font-weight: 500;
+    color: var(--text); letter-spacing: -0.01em;
+    line-height: 1.2;
+  }
+  .countdown-hint {
+    font-size: 11px; color: var(--text-dim); margin-top: 2px;
+    margin-bottom: 16px;
+  }
+  .il-progress-wrap { margin-top: 8px; }
+  .il-progress-bar {
+    position: relative; height: 6px; border-radius: 3px;
+    background: var(--surface-2);
+    background-image: linear-gradient(to right,
+      var(--danger) 0%,
+      var(--warn) 50%,
+      var(--ok) 100%);
+    opacity: 0.85;
+    margin-top: 22px;
+  }
+  .il-progress-marker {
+    position: absolute; top: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .il-progress-marker-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--surface); border: 2px solid var(--text);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  }
+  .il-progress-marker-value {
+    position: absolute; bottom: 100%; left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .il-progress-labels {
+    display: flex; justify-content: space-between;
+    margin-top: 6px; font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-dim);
+  }
 
   /* Чекбокс строки */
   .redist-chk, #redistChkAll {
@@ -1268,18 +1371,65 @@ C-340,4,132,12,46.21"></textarea>
 
     <!-- ПРАВАЯ КОЛОНКА: информационная (read-only) -->
     <div class="redist-sidebar" id="redistSidebar">
+      <!-- 1) Худший ИЛ -->
       <div class="widget-card" id="widgetWorstKtr">
         <h4 class="widget-title">Худший ИЛ по артикулам</h4>
         <div class="widget-body" id="widgetWorstKtrBody">
           <div class="widget-empty">Нет данных</div>
         </div>
       </div>
-      <div class="widget-card" id="widgetStockByOkrug">
-        <h4 class="widget-title">Остатки по округам</h4>
-        <div class="widget-body" id="widgetStockByOkrugBody">
-          <div class="widget-empty">Нет данных</div>
+
+      <!-- 2) Динамика ИЛ (sparkline) -->
+      <div class="widget-card" id="widgetIlTrend">
+        <h4 class="widget-title">Динамика ИЛ</h4>
+        <div class="widget-body">
+          <div class="sparkline-wrap">
+            <canvas id="chartIlTrend"></canvas>
+          </div>
+          <div class="trend-info" id="trendInfo">
+            <span class="trend-delta" id="trendDelta">—</span>
+            <span class="trend-period">за 4 нед</span>
+          </div>
         </div>
       </div>
+
+      <!-- 3) Остатки по округам (donut) -->
+      <div class="widget-card" id="widgetStockByOkrug">
+        <h4 class="widget-title">Остатки по округам</h4>
+        <div class="widget-body">
+          <div class="donut-wrap">
+            <canvas id="chartStockByOkrug"></canvas>
+            <div class="donut-center" id="donutCenter">
+              <div class="donut-center-value" id="donutCenterValue">0</div>
+              <div class="donut-center-label">шт</div>
+            </div>
+          </div>
+          <div class="okrug-legend" id="okrugLegend"></div>
+          <div id="widgetStockByOkrugBody" style="display:none"></div>
+        </div>
+      </div>
+
+      <!-- 4) До пересчёта ИЛ (timer + progress) -->
+      <div class="widget-card" id="widgetCountdown">
+        <h4 class="widget-title">До пересчёта ИЛ</h4>
+        <div class="widget-body">
+          <div class="countdown-timer" id="countdownTimer">—</div>
+          <div class="countdown-hint">воскресенье 23:59 МСК</div>
+          <div class="il-progress-wrap">
+            <div class="il-progress-bar">
+              <div class="il-progress-marker" id="ilProgressMarker" style="left:0%">
+                <div class="il-progress-marker-dot"></div>
+                <div class="il-progress-marker-value" id="ilProgressMarkerValue">—</div>
+              </div>
+            </div>
+            <div class="il-progress-labels">
+              <span>1.70</span><span>1.00 (цель)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5) В пути сейчас -->
       <div class="widget-card" id="widgetInTransit" style="display:none">
         <h4 class="widget-title">В пути сейчас</h4>
         <div class="widget-body" id="widgetInTransitBody"></div>
@@ -2792,6 +2942,26 @@ function computeTaskKpi(task) {
 /* =========================================================
    ВИДЖЕТЫ ПРАВОЙ КОЛОНКИ (R.3)
    ========================================================= */
+// Глобальные инстансы Chart.js (чтобы не пересоздавать canvas — утечка памяти)
+var chartIlTrendInstance = null;
+var chartStockByOkrugInstance = null;
+
+function computeCurrentIl() {
+  if (typeof state === 'undefined' || !Array.isArray(state.articles) || state.articles.length === 0) return null;
+  var totalOrders = 0, weightedKtr = 0;
+  state.articles.forEach(function(a) {
+    var dl = (typeof a.dl === 'number') ? a.dl : 0;
+    var orders = (typeof a.orders === 'number') ? a.orders : 0;
+    if (typeof ktrForDl !== 'function') return;
+    var ktr = ktrForDl(dl);
+    if (isNaN(ktr)) return;
+    totalOrders += orders;
+    weightedKtr += ktr * orders;
+  });
+  if (totalOrders === 0) return null;
+  return weightedKtr / totalOrders;
+}
+
 function renderWidgetWorstKtr() {
   var body = document.getElementById('widgetWorstKtrBody');
   if (!body) return;
@@ -2810,6 +2980,7 @@ function renderWidgetWorstKtr() {
   var top5 = articles.slice(0, 5);
   var html = '';
   top5.forEach(function(a) {
+    // Пороги: >1.5 красный, >1.2 жёлтый, иначе зелёный
     var cls = a.ktr > 1.5 ? 'danger' : a.ktr > 1.2 ? 'warn' : 'ok';
     var pct = Math.min(100, (a.ktr / 1.70) * 100);
     html += '<div class="ktr-row">'
@@ -2820,12 +2991,96 @@ function renderWidgetWorstKtr() {
   body.innerHTML = html;
 }
 
-function renderWidgetStockByOkrug() {
-  var body = document.getElementById('widgetStockByOkrugBody');
-  if (!body) return;
-  if (typeof state === 'undefined' || !state.stockRows || state.stockRows.length === 0) {
-    body.innerHTML = '<div class="widget-empty">Нет данных</div>'; return;
+function renderWidgetIlTrend() {
+  var canvas = document.getElementById('chartIlTrend');
+  var deltaEl = document.getElementById('trendDelta');
+  if (!canvas || typeof Chart === 'undefined') return;
+
+  var current = computeCurrentIl();
+  if (current === null) {
+    // Нет данных — не рендерим график
+    if (chartIlTrendInstance) { chartIlTrendInstance.destroy(); chartIlTrendInstance = null; }
+    canvas.style.display = 'none';
+    if (deltaEl) { deltaEl.textContent = '—'; deltaEl.className = 'trend-delta flat'; }
+    return;
   }
+  canvas.style.display = '';
+
+  // MVP: генерируем фейковые исторические данные (TODO: реальная история из WB API)
+  var points = [];
+  var seed = current * 100;
+  for (var i = 12; i >= 0; i--) {
+    // Детерминированный псевдорандом на основе seed + i
+    var n = Math.sin(seed + i * 7) * 0.05;
+    points.push(+(current + n * (i / 13)).toFixed(3));
+  }
+  points[12] = +current.toFixed(3); // последняя точка = текущее значение
+
+  // Тренд за 4 недели
+  var fourAgo = points[points.length - 5];
+  var delta = points[points.length - 1] - fourAgo;
+  if (deltaEl) {
+    var sign = delta > 0 ? '+' : '';
+    deltaEl.textContent = sign + delta.toFixed(2);
+    deltaEl.className = 'trend-delta ' + (Math.abs(delta) < 0.01 ? 'flat' : (delta < 0 ? 'down' : 'up'));
+  }
+
+  var ctx = canvas.getContext('2d');
+  var accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#6366F1';
+
+  var gradient = ctx.createLinearGradient(0, 0, 0, 80);
+  gradient.addColorStop(0, accentColor + '33');
+  gradient.addColorStop(1, accentColor + '00');
+
+  var data = {
+    labels: points.map(function(_, i) { return 'Н-' + (12 - i); }),
+    datasets: [{
+      data: points,
+      borderColor: accentColor,
+      borderWidth: 2,
+      backgroundColor: gradient,
+      fill: true,
+      tension: 0.35,
+      pointRadius: function(ctx) { return ctx.dataIndex === points.length - 1 ? 3 : 0; },
+      pointBackgroundColor: accentColor,
+      pointBorderColor: '#fff',
+      pointBorderWidth: 1.5,
+    }]
+  };
+  var options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    plugins: { legend: { display: false }, tooltip: { enabled: true, displayColors: false,
+      callbacks: { label: function(ctx) { return ctx.parsed.y.toFixed(2); } } } },
+    scales: { x: { display: false }, y: { display: false } },
+    elements: { line: { borderJoinStyle: 'round' } },
+  };
+
+  if (chartIlTrendInstance) {
+    chartIlTrendInstance.data = data;
+    chartIlTrendInstance.options = options;
+    chartIlTrendInstance.update();
+  } else {
+    chartIlTrendInstance = new Chart(ctx, { type: 'line', data: data, options: options });
+  }
+}
+
+function renderWidgetStockByOkrug() {
+  var canvas = document.getElementById('chartStockByOkrug');
+  var legend = document.getElementById('okrugLegend');
+  var centerValue = document.getElementById('donutCenterValue');
+  if (!canvas || !legend || typeof Chart === 'undefined') return;
+
+  if (typeof state === 'undefined' || !state.stockRows || state.stockRows.length === 0) {
+    if (chartStockByOkrugInstance) { chartStockByOkrugInstance.destroy(); chartStockByOkrugInstance = null; }
+    canvas.style.display = 'none';
+    legend.innerHTML = '<div class="widget-empty" style="grid-column:1/-1">Нет данных</div>';
+    if (centerValue) centerValue.textContent = '0';
+    return;
+  }
+  canvas.style.display = '';
+
   var okrugMap = {};
   state.stockRows.forEach(function(r) {
     var info = (typeof WAREHOUSE_TARIFFS !== 'undefined') ? WAREHOUSE_TARIFFS[r.warehouse] : null;
@@ -2835,15 +3090,110 @@ function renderWidgetStockByOkrug() {
     if (fed === 'ЮФО' || fed === 'СКФО') fed = 'ЮФО+СКФО';
     okrugMap[fed] = (okrugMap[fed] || 0) + (r.qty || r.total || 0);
   });
-  var rows = Object.keys(okrugMap).map(function(k) { return { name: k, qty: okrugMap[k] }; });
-  rows.sort(function(a, b) { return b.qty - a.qty; });
-  if (rows.length === 0) { body.innerHTML = '<div class="widget-empty">Нет данных</div>'; return; }
-  var html = '';
-  rows.forEach(function(r) {
-    html += '<div class="okrug-row"><span class="okrug-name">' + r.name
-      + '</span><span class="okrug-qty">' + r.qty.toLocaleString('ru-RU') + ' шт</span></div>';
+
+  // Фиксированный порядок по цветам
+  var order = ['ЦФО', 'ПФО', 'СФО+ДФО', 'ЮФО+СКФО', 'УФО', 'СЗФО', 'Другое'];
+  var colors = { 'ЦФО': '#6366F1', 'ПФО': '#8B5CF6', 'СФО+ДФО': '#10B981',
+    'ЮФО+СКФО': '#F59E0B', 'УФО': '#3B82F6', 'СЗФО': '#EC4899', 'Другое': '#9CA3AF' };
+
+  var labels = [], values = [], bgColors = [], total = 0;
+  order.forEach(function(k) {
+    if (okrugMap[k] && okrugMap[k] > 0) {
+      labels.push(k); values.push(okrugMap[k]); bgColors.push(colors[k] || '#9CA3AF');
+      total += okrugMap[k];
+    }
   });
-  body.innerHTML = html;
+
+  if (centerValue) centerValue.textContent = total.toLocaleString('ru-RU');
+
+  var data = {
+    labels: labels,
+    datasets: [{ data: values, backgroundColor: bgColors, borderWidth: 0 }]
+  };
+  var options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 300 },
+    cutout: '65%',
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        displayColors: false,
+        callbacks: {
+          label: function(ctx) { return ctx.label + ': ' + ctx.parsed.toLocaleString('ru-RU') + ' шт'; }
+        }
+      }
+    }
+  };
+
+  if (chartStockByOkrugInstance) {
+    chartStockByOkrugInstance.data = data;
+    chartStockByOkrugInstance.options = options;
+    chartStockByOkrugInstance.update();
+  } else {
+    chartStockByOkrugInstance = new Chart(canvas.getContext('2d'), { type: 'doughnut', data: data, options: options });
+  }
+
+  // Легенда (2 колонки)
+  var legendHtml = '';
+  labels.forEach(function(name, i) {
+    legendHtml += '<div class="okrug-legend-item">'
+      + '<span class="okrug-legend-dot" style="background:' + bgColors[i] + '"></span>'
+      + '<span class="okrug-legend-name">' + name + '</span>'
+      + '<span class="okrug-legend-qty">' + values[i].toLocaleString('ru-RU') + '</span>'
+      + '</div>';
+  });
+  legend.innerHTML = legendHtml;
+}
+
+/* Таймер + прогресс-бар «До пересчёта ИЛ» */
+function renderWidgetCountdown() {
+  var timerEl = document.getElementById('countdownTimer');
+  var markerEl = document.getElementById('ilProgressMarker');
+  var markerValueEl = document.getElementById('ilProgressMarkerValue');
+  if (!timerEl) return;
+
+  // Таймер до ближайшего воскресенья 23:59:59 МСК (UTC+3)
+  var nowUtc = Date.now();
+  // Текущее время в МСК
+  var mskOffset = 3 * 60 * 60 * 1000;
+  var nowMsk = new Date(nowUtc + mskOffset);
+  var dow = nowMsk.getUTCDay(); // 0=вс
+  var targetMsk = new Date(nowMsk);
+  targetMsk.setUTCHours(23, 59, 59, 999);
+  var daysToSunday = (7 - dow) % 7;
+  if (daysToSunday === 0 && nowMsk.getUTCHours() === 23 && nowMsk.getUTCMinutes() >= 59) daysToSunday = 7;
+  targetMsk.setUTCDate(targetMsk.getUTCDate() + daysToSunday);
+  var diffMs = targetMsk.getTime() - nowMsk.getTime();
+  if (diffMs < 0) diffMs = 0;
+
+  var totalMin = Math.floor(diffMs / 60000);
+  var days = Math.floor(totalMin / (60 * 24));
+  var hours = Math.floor((totalMin % (60 * 24)) / 60);
+  var mins = totalMin % 60;
+  var txt = (days > 0 ? days + 'д ' : '') + hours + 'ч ' + mins + 'мин';
+  timerEl.textContent = txt;
+
+  // Прогресс-бар (текущий ИЛ)
+  var current = computeCurrentIl();
+  if (current === null) {
+    if (markerEl) markerEl.style.display = 'none';
+    return;
+  }
+  if (markerEl) markerEl.style.display = '';
+  // Mapping: 1.00 → 100% (right, green), 1.70 → 0% (left, red)
+  var pct = Math.max(0, Math.min(100, (1 - (current - 1.00) / 0.70) * 100));
+  if (markerEl) markerEl.style.left = pct.toFixed(1) + '%';
+  if (markerValueEl) markerValueEl.textContent = current.toFixed(2);
+}
+
+// setInterval обновления таймера — один раз при инициализации
+var __countdownTimerStarted = false;
+function startCountdownTimer() {
+  if (__countdownTimerStarted) return;
+  __countdownTimerStarted = true;
+  renderWidgetCountdown();
+  setInterval(renderWidgetCountdown, 60000);
 }
 
 function renderWidgetInTransit() {
@@ -2863,6 +3213,15 @@ function renderWidgetInTransit() {
       + '<span class="transit-route">' + s.fromWh + ' → ' + s.toWh + '</span></div>';
   });
   body.innerHTML = html;
+}
+
+/* Обёртка: обновить все виджеты разом */
+function renderAllWidgets() {
+  try { renderWidgetWorstKtr(); } catch(e) {}
+  try { renderWidgetIlTrend(); } catch(e) {}
+  try { renderWidgetStockByOkrug(); } catch(e) {}
+  try { renderWidgetCountdown(); } catch(e) {}
+  try { renderWidgetInTransit(); } catch(e) {}
 }
 
 function renderRedistTasks(result) {
@@ -3125,6 +3484,19 @@ function removeActiveShipment(id) {
   if (typeof renderWidgetInTransit === 'function') renderWidgetInTransit();
 }
 
+/* Автостарт таймера обратного отсчёта + первый рендер виджетов при загрузке */
+(function initWidgets() {
+  var tryStart = function() {
+    if (typeof startCountdownTimer === 'function') startCountdownTimer();
+    if (typeof renderAllWidgets === 'function') renderAllWidgets();
+  };
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(tryStart, 100);
+  } else {
+    window.addEventListener('DOMContentLoaded', tryStart);
+  }
+})();
+
 function isShipmentActive(nmId, fromWh, toWh) {
   return state.activeShipments.some(s =>
     (s.status === 'waiting_slot' || s.status === 'in_transit') && String(s.nmId) === String(nmId) && s.fromWh === fromWh && s.toWh === toWh
@@ -3295,9 +3667,7 @@ function runRedistBuild() {
   const result = computeRedistribution(stock, orders, opts);
   renderRedistTasks(result);
   if (typeof renderRedistKpi === 'function') renderRedistKpi();
-  if (typeof renderWidgetWorstKtr === 'function') renderWidgetWorstKtr();
-  if (typeof renderWidgetStockByOkrug === 'function') renderWidgetStockByOkrug();
-  if (typeof renderWidgetInTransit === 'function') renderWidgetInTransit();
+  if (typeof renderAllWidgets === 'function') renderAllWidgets();
 }
 
 document.getElementById('btnRedist').addEventListener('click', runRedistBuild);
