@@ -751,6 +751,49 @@
     color: var(--text-dim); font-size: 12px; padding: 8px 12px;
   }
 
+  /* Dropdown аналогов (G.2) */
+  .dp-analog-dropdown { position: relative; display: inline-block; }
+  .dp-analog-btn {
+    background: var(--surface); border: 0.5px solid var(--border);
+    color: var(--text); cursor: pointer;
+    padding: 4px 10px; border-radius: 6px;
+    font-size: 12px; font-family: inherit;
+    transition: background 150ms, border-color 150ms;
+    white-space: nowrap;
+  }
+  .dp-analog-btn:hover { background: var(--surface-2); border-color: var(--border-2); }
+  .dp-analog-menu {
+    position: fixed;
+    z-index: 1000; min-width: 280px;
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+    padding: 8px;
+  }
+  .dp-analog-menu.hidden { display: none; }
+  .dp-analog-search {
+    width: 100%; padding: 6px 10px; font-size: 12px;
+    border: 0.5px solid var(--border); border-radius: 6px;
+    margin-bottom: 6px; background: var(--surface); color: var(--text);
+  }
+  .dp-analog-search:focus { outline: none; border-color: var(--accent); }
+  .dp-analog-list { max-height: 220px; overflow-y: auto; }
+  .dp-analog-item {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; padding: 6px 8px; border-radius: 4px; cursor: pointer;
+    font-size: 12px; transition: background 150ms;
+  }
+  .dp-analog-item:hover { background: var(--accent-soft); }
+  .dp-analog-item.selected { background: var(--accent-soft); color: var(--accent); }
+  .dp-analog-item-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .dp-analog-nm { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text); }
+  .dp-analog-brand { font-size: 11px; color: var(--text-dim); }
+  .dp-analog-orders {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--text-soft); white-space: nowrap;
+  }
+
   h2 {
     font-size: 22px; font-weight: 500; margin-bottom: 6px; letter-spacing: -0.01em; color: var(--text);
   }
@@ -3567,32 +3610,47 @@ function getStockOkrugsForNm(nmId) {
   return set;
 }
 
-// Главный расчёт распределения
-function computeDeliveryDistribution(nmId, totalQty, strategy) {
-  strategy = strategy || dpStrategy;
-  var article = null;
-  if (state.articles && state.articles.length) {
-    for (var i = 0; i < state.articles.length; i++) {
-      if (String(state.articles[i].nmId) === String(nmId)) { article = state.articles[i]; break; }
-    }
+// Найти артикул в state.articles по nmId
+function dpFindArticle(nmId) {
+  if (!state.articles || !state.articles.length) return null;
+  for (var i = 0; i < state.articles.length; i++) {
+    if (String(state.articles[i].nmId) === String(nmId)) return state.articles[i];
   }
-  if (!article) return { status: 'no-article', regions: [] };
-  var regionsMap = article.regions || {};
-  var hasOrders = article.orders > 0 && Object.keys(regionsMap).length > 0;
-  if (!hasOrders) return { status: 'no-history', regions: [] };
+  return null;
+}
 
-  // Множество округов со стоком (для исключения локальных заказов)
+// Главный расчёт распределения
+// opts.analogNmId — если указан, распределение по заказам аналога, но фильтр "локальных" по исходному nmId
+function computeDeliveryDistribution(nmId, totalQty, strategy, opts) {
+  strategy = strategy || dpStrategy;
+  opts = opts || {};
+  var targetArticle = dpFindArticle(nmId);
+  var analogArticle = opts.analogNmId ? dpFindArticle(opts.analogNmId) : null;
+
+  // Источник истории заказов: аналог, если указан; иначе сам артикул
+  var sourceArticle = analogArticle || targetArticle;
+  if (!targetArticle && !analogArticle) return { status: 'no-article', regions: [] };
+
+  var regionsMap = (sourceArticle && sourceArticle.regions) || {};
+  var sourceOrders = (sourceArticle && sourceArticle.orders) || 0;
+  var hasHistory = sourceOrders > 0 && Object.keys(regionsMap).length > 0;
+  if (!hasHistory) {
+    return analogArticle
+      ? { status: 'analog-no-data', regions: [] }
+      : { status: 'no-history', regions: [] };
+  }
+
+  // Множество округов со стоком (по ОРИГИНАЛЬНОМУ nmId, не аналогу)
   var stockOkrugs = getStockOkrugsForNm(nmId);
   var hasAnyStock = Object.keys(stockOkrugs).length > 0;
 
-  // Агрегируем по округам, исключая локальные (там, где уже есть остаток)
+  // Агрегируем по округам, исключая локальные
   var byOkrug = {};
   Object.keys(regionsMap).forEach(function(region) {
     var ord = regionsMap[region] || 0;
     if (ord <= 0) return;
     var okrug = (typeof getOkrugForRegion === 'function') ? getOkrugForRegion(region) : null;
     if (!okrug) return;
-    // Если в этом округе уже есть сток — это локальный заказ, пропускаем
     if (hasAnyStock && stockOkrugs[okrug]) return;
     var zoneKey = mergedZone(okrug);
     byOkrug[zoneKey] = (byOkrug[zoneKey] || 0) + ord;
@@ -3600,11 +3658,9 @@ function computeDeliveryDistribution(nmId, totalQty, strategy) {
 
   var totalOrders = Object.keys(byOkrug).reduce(function(s, k) { return s + byOkrug[k]; }, 0);
   if (totalOrders === 0) {
-    // Все заказы локальные (уже покрыты из текущего стока)
     return { status: 'all-local', regions: [] };
   }
 
-  // Распределяем totalQty пропорционально
   var rawDist = Object.keys(byOkrug).map(function(okrug) {
     var orders = byOkrug[okrug];
     var pct = orders / totalOrders;
@@ -3612,18 +3668,59 @@ function computeDeliveryDistribution(nmId, totalQty, strategy) {
   });
   rawDist.sort(function(a, b) { return b.orders - a.orders; });
 
-  // Коррекция: раскидать остаток по крупнейшим округам
   var distributed = rawDist.reduce(function(s, r) { return s + r.qty; }, 0);
   var remainder = totalQty - distributed;
   for (var j = 0; j < remainder && j < rawDist.length; j++) rawDist[j].qty++;
 
-  // Подбираем склад
   rawDist.forEach(function(r) {
     r.warehouse = pickWarehouseForOkrug(r.okrug, strategy) || '—';
     r.warehouseEditable = false;
   });
 
-  return { status: 'ok', regions: rawDist };
+  return { status: analogArticle ? 'analog' : 'ok', regions: rawDist, analogNmId: opts.analogNmId || null };
+}
+
+// Поиск аналогов по brand + name в state.articles
+function findAnalogs(targetNmId, topN) {
+  topN = topN || 3;
+  var target = dpFindArticle(targetNmId);
+  var brand = target ? (target.brand || '') : '';
+  var name = target ? (target.name || '') : '';
+  if (!state.articles || !state.articles.length) return [];
+
+  // Если у target есть brand+name — строгий фильтр
+  var strict = [];
+  var loose = [];
+  state.articles.forEach(function(a) {
+    if (String(a.nmId) === String(targetNmId)) return;
+    if (!a.orders || a.orders <= 0) return;
+    if (brand && name && a.brand === brand && a.name === name) {
+      strict.push(a);
+    } else if (brand && a.brand === brand) {
+      loose.push(a);
+    }
+  });
+
+  // Приоритет: strict → loose → топ по orders
+  var result = strict.slice().sort(function(a, b) { return b.orders - a.orders; }).slice(0, topN);
+  if (result.length < topN) {
+    var need = topN - result.length;
+    var extraLoose = loose.slice().sort(function(a, b) { return b.orders - a.orders; }).slice(0, need);
+    result = result.concat(extraLoose);
+  }
+  if (result.length < topN) {
+    var need2 = topN - result.length;
+    var fallback = state.articles
+      .filter(function(a) {
+        if (String(a.nmId) === String(targetNmId)) return false;
+        if (!a.orders || a.orders <= 0) return false;
+        return !result.some(function(x) { return String(x.nmId) === String(a.nmId); });
+      })
+      .sort(function(a, b) { return b.orders - a.orders; })
+      .slice(0, need2);
+    result = result.concat(fallback);
+  }
+  return result;
 }
 
 // Генератор уникальных ID
@@ -3660,10 +3757,51 @@ function dpFindArticleMeta(nmId) {
 // Рендер status pill
 function dpStatusPill(status) {
   if (status === 'ok') return '<span class="dp-status-pill ok">Есть история</span>';
+  if (status === 'analog') return '<span class="dp-status-pill ok">По аналогу</span>';
   if (status === 'no-history') return '<span class="dp-status-pill warn">Нет истории</span>';
   if (status === 'no-article') return '<span class="dp-status-pill bad">Не найден</span>';
   if (status === 'all-local') return '<span class="dp-status-pill ok">Локальное покрытие</span>';
+  if (status === 'analog-no-data') return '<span class="dp-status-pill warn">Аналог без данных</span>';
   return '<span class="dp-status-pill">—</span>';
+}
+
+// Рендер колонки «Аналог»
+function dpRenderAnalogCell(it) {
+  var status = it.distribution && it.distribution.status;
+  var needsAnalog = status === 'no-history' || status === 'analog' || status === 'no-article';
+  if (!needsAnalog) return '<span class="muted" style="font-size:12px">—</span>';
+
+  var candidates = findAnalogs(it.nmId, 8); // топ-8 для dropdown (первые 3 быстрых + 5 в расширенном меню)
+  if (candidates.length === 0) {
+    return '<span class="muted" style="font-size:12px">Нет аналогов</span>';
+  }
+
+  var currentAnalogNmId = it.analogNmId || (it.distribution && it.distribution.analogNmId);
+  var selected = currentAnalogNmId
+    ? candidates.find(function(c) { return String(c.nmId) === String(currentAnalogNmId); })
+    : null;
+  var btnLabel = selected
+    ? ('Аналог: ' + selected.nmId)
+    : ('Выбрать аналог (' + candidates.length + ')');
+
+  var listItems = candidates.map(function(c, idx) {
+    var isSel = selected && String(selected.nmId) === String(c.nmId);
+    return '<div class="dp-analog-item' + (isSel ? ' selected' : '') + '" data-dp-analog-pick="' + it.id + '" data-dp-analog-nm="' + c.nmId + '">'
+      + '<div class="dp-analog-item-main">'
+      +   '<span class="dp-analog-nm">' + c.nmId + '</span>'
+      +   '<span class="dp-analog-brand">' + (c.brand || '—') + '</span>'
+      + '</div>'
+      + '<span class="dp-analog-orders">' + c.orders + ' зак.</span>'
+      + '</div>';
+  }).join('');
+
+  return '<div class="dp-analog-dropdown" data-dp-analog-for="' + it.id + '">'
+    + '<button class="dp-analog-btn" data-dp-analog-toggle="' + it.id + '" type="button">' + btnLabel + ' ▾</button>'
+    + '<div class="dp-analog-menu hidden" data-dp-analog-menu="' + it.id + '">'
+    +   '<input type="text" class="dp-analog-search" placeholder="Поиск по nmId или бренду…" data-dp-analog-search="' + it.id + '">'
+    +   '<div class="dp-analog-list" data-dp-analog-list="' + it.id + '">' + listItems + '</div>'
+    + '</div>'
+    + '</div>';
 }
 
 // Рендер основной таблицы запланированных артикулов
@@ -3692,12 +3830,14 @@ function renderDpAddedTable() {
     var statusCls = (it.distribution && it.distribution.status) || 'no-article';
     var regionsCount = (it.distribution && it.distribution.regions) ? it.distribution.regions.length : 0;
     var distBtnHtml = '';
-    if (statusCls === 'ok' && regionsCount > 0) {
+    if ((statusCls === 'ok' || statusCls === 'analog') && regionsCount > 0) {
       distBtnHtml = '<button class="dp-show-dist-btn" data-dp-toggle="' + it.id + '">Показать →</button>';
-    } else if (statusCls === 'no-history') {
-      distBtnHtml = '<span class="muted" style="font-size:12px">Нужен аналог</span>';
+    } else if (statusCls === 'no-history' || statusCls === 'no-article') {
+      distBtnHtml = '<span class="muted" style="font-size:12px">Выбери аналог →</span>';
     } else if (statusCls === 'all-local') {
       distBtnHtml = '<span class="muted" style="font-size:12px">Уже покрыто локально</span>';
+    } else if (statusCls === 'analog-no-data') {
+      distBtnHtml = '<span class="muted" style="font-size:12px">Аналог без данных</span>';
     } else {
       distBtnHtml = '<span class="muted" style="font-size:12px">—</span>';
     }
@@ -3713,7 +3853,7 @@ function renderDpAddedTable() {
       + '<td class="num">' + it.perBox + '</td>'
       + '<td class="num"><strong>' + it.total + '</strong></td>'
       + '<td>' + dpStatusPill(statusCls) + '</td>'
-      + '<td><span class="muted" style="font-size:12px">' + (statusCls === 'no-history' ? 'G.2' : '—') + '</span></td>'
+      + '<td>' + dpRenderAnalogCell(it) + '</td>'
       + '<td>' + distBtnHtml + '</td>'
       + '<td style="white-space:nowrap">'
       +   '<button class="act-btn act-del" type="button" title="Удалить" data-dp-remove="' + it.id + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'
@@ -3913,7 +4053,7 @@ function dpRecomputeAllForStrategy() {
       renderDpAddedTable();
     });
 
-    // Делегирование: раскрытие распределения + удаление
+    // Делегирование: раскрытие распределения + удаление + аналог dropdown
     var tbody = document.getElementById('dpAddedTbody');
     if (tbody) tbody.addEventListener('click', function(e) {
       var toggleBtn = e.target.closest('[data-dp-toggle]');
@@ -3944,6 +4084,66 @@ function dpRecomputeAllForStrategy() {
         var rid = removeBtn.dataset.dpRemove;
         state.deliveryPlan = state.deliveryPlan.filter(function(x) { return x.id !== rid; });
         renderDpAddedTable();
+        return;
+      }
+      // Аналог: открытие dropdown
+      var analogToggle = e.target.closest('[data-dp-analog-toggle]');
+      if (analogToggle) {
+        e.stopPropagation();
+        var aid = analogToggle.dataset.dpAnalogToggle;
+        // Закрываем все другие меню
+        document.querySelectorAll('[data-dp-analog-menu]').forEach(function(m) {
+          if (m.dataset.dpAnalogMenu !== aid) m.classList.add('hidden');
+        });
+        var menu = tbody.querySelector('[data-dp-analog-menu="' + aid + '"]');
+        if (menu) {
+          var willOpen = menu.classList.contains('hidden');
+          menu.classList.toggle('hidden');
+          if (willOpen) {
+            // Позиционируем под кнопкой (position: fixed)
+            var rect = analogToggle.getBoundingClientRect();
+            menu.style.top = (rect.bottom + 4) + 'px';
+            menu.style.left = rect.left + 'px';
+            // Фокус на поиск
+            var searchInput = menu.querySelector('.dp-analog-search');
+            if (searchInput) setTimeout(function(){ searchInput.focus(); }, 50);
+          }
+        }
+        return;
+      }
+      // Аналог: выбор элемента
+      var pick = e.target.closest('[data-dp-analog-pick]');
+      if (pick) {
+        var iid = pick.dataset.dpAnalogPick;
+        var analogNm = Number(pick.dataset.dpAnalogNm);
+        var it2 = state.deliveryPlan.find(function(x) { return x.id === iid; });
+        if (!it2) return;
+        it2.analogNmId = analogNm;
+        it2.distribution = computeDeliveryDistribution(it2.nmId, it2.total, dpStrategy, { analogNmId: analogNm });
+        renderDpAddedTable();
+        return;
+      }
+    });
+
+    // Закрытие dropdown'ов по клику вне
+    document.addEventListener('click', function(e) {
+      if (e.target.closest('.dp-analog-dropdown')) return;
+      document.querySelectorAll('[data-dp-analog-menu]').forEach(function(m) { m.classList.add('hidden'); });
+    });
+
+    // Делегирование: поиск в dropdown аналогов
+    if (tbody) tbody.addEventListener('input', function(e) {
+      if (e.target && e.target.classList.contains('dp-analog-search')) {
+        var sid = e.target.dataset.dpAnalogSearch;
+        var q = (e.target.value || '').toLowerCase().trim();
+        var list = tbody.querySelector('[data-dp-analog-list="' + sid + '"]');
+        if (!list) return;
+        list.querySelectorAll('.dp-analog-item').forEach(function(item) {
+          var nm = (item.dataset.dpAnalogNm || '').toLowerCase();
+          var brand = (item.querySelector('.dp-analog-brand') || {}).textContent || '';
+          var match = !q || nm.indexOf(q) !== -1 || brand.toLowerCase().indexOf(q) !== -1;
+          item.style.display = match ? '' : 'none';
+        });
       }
     });
 
@@ -3966,17 +4166,79 @@ function dpRecomputeAllForStrategy() {
         var it = state.deliveryPlan.find(function(x) { return x.id === itId; });
         if (!it || !it.distribution) return;
         var reg = it.distribution.regions.find(function(r) { return r.okrug === okr; });
-        if (reg) {
-          reg.qty = Math.max(0, Number(e.target.value) || 0);
-          var total = it.distribution.regions.reduce(function(s, r) { return s + r.qty; }, 0);
-          var totalEl = document.getElementById('dpDistTotal_' + itId);
-          if (totalEl) {
-            totalEl.textContent = total;
-            totalEl.style.color = (total === it.total) ? '' : 'var(--warn)';
-            totalEl.title = (total === it.total) ? '' : 'Сумма ' + total + ' ≠ Итого ' + it.total;
+        if (!reg) return;
+        reg.qty = Math.max(0, Number(e.target.value) || 0);
+        reg.qtyEdited = true;
+        var total = it.distribution.regions.reduce(function(s, r) { return s + r.qty; }, 0);
+        var totalEl = document.getElementById('dpDistTotal_' + itId);
+        var mismatch = total - it.total;
+        if (totalEl) {
+          totalEl.textContent = total;
+          if (mismatch === 0) {
+            totalEl.style.color = '';
+            totalEl.title = '';
+          } else {
+            totalEl.style.color = 'var(--warn)';
+            totalEl.title = 'Сумма ' + total + ' ≠ Итого ' + it.total + ' (разница ' + (mismatch > 0 ? '+' : '') + mismatch + ')';
           }
-          renderDpSummary();
         }
+        e.target.classList.toggle('invalid', mismatch !== 0);
+        renderDpSummary();
+      }
+    });
+
+    // Blur на qty → пропорциональный пересчёт ОСТАЛЬНЫХ (держит сумму = Итого)
+    if (tbody) tbody.addEventListener('change', function(e) {
+      if (e.target && e.target.classList.contains('dp-qty-edit')) {
+        var itId = e.target.dataset.dpQtyItem;
+        var okr = e.target.dataset.dpQtyOkrug;
+        var it = state.deliveryPlan.find(function(x) { return x.id === itId; });
+        if (!it || !it.distribution || !it.distribution.regions) return;
+
+        var regions = it.distribution.regions;
+        var editedReg = regions.find(function(r) { return r.okrug === okr; });
+        if (!editedReg) return;
+
+        var total = regions.reduce(function(s, r) { return s + r.qty; }, 0);
+        var target = it.total;
+        if (total === target) { return; } // всё ок
+
+        // Распределяем разницу по остальным регионам пропорционально их текущим qty
+        var others = regions.filter(function(r) { return r.okrug !== okr; });
+        var othersSum = others.reduce(function(s, r) { return s + r.qty; }, 0);
+        var needed = target - editedReg.qty; // сколько должно быть в сумме у others
+
+        if (othersSum > 0 && needed >= 0) {
+          // Пропорциональное масштабирование
+          var factor = needed / othersSum;
+          others.forEach(function(r) { r.qty = Math.floor(r.qty * factor); });
+          // Коррекция остатка
+          var after = others.reduce(function(s, r) { return s + r.qty; }, 0);
+          var rem = needed - after;
+          others.sort(function(a, b) { return b.orders - a.orders; });
+          for (var k = 0; k < Math.abs(rem) && k < others.length; k++) {
+            others[k].qty += (rem > 0 ? 1 : -1);
+            if (others[k].qty < 0) others[k].qty = 0;
+          }
+        } else if (needed < 0) {
+          // Отредактированное qty больше total — обнулить остальные
+          others.forEach(function(r) { r.qty = 0; });
+          editedReg.qty = target;
+        }
+
+        // Полный ре-рендер вложенной таблицы (простое обновление чисел)
+        var mainRow = tbody.querySelector('tr[data-dp-id="' + itId + '"]');
+        var distRow = tbody.querySelector('tr[data-dp-dist-for="' + itId + '"]');
+        if (distRow) {
+          distRow.remove();
+          var fresh = renderDpDistRow(itId);
+          if (fresh && mainRow) {
+            var tmp = document.createElement('tbody');
+            tmp.innerHTML = fresh;
+            mainRow.parentNode.insertBefore(tmp.firstChild, mainRow.nextSibling);
+          }
+        }
+        renderDpSummary();
       }
     });
   }
