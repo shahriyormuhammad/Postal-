@@ -3921,6 +3921,57 @@ if (typeof state !== 'undefined' && !state.deliveryPlan) state.deliveryPlan = []
 // Число пар в коробке (константа, изменяется в разделе «Поставка» через ростовку)
 var DP_PAIRS_PER_BOX = 8;
 
+// --- Persistence: план и шаблоны сохраняются в localStorage ---
+var DP_STATE_KEY = 'postal_delivery_plan_v1';
+var DP_TEMPLATES_KEY = 'postal_supply_templates_v1';
+
+function dpSaveState() {
+  try {
+    var payload = {
+      deliveryPlan: state.deliveryPlan || [],
+      savedAt: Date.now(),
+    };
+    localStorage.setItem(DP_STATE_KEY, JSON.stringify(payload));
+  } catch(e) {}
+}
+
+function dpLoadState() {
+  try {
+    var raw = localStorage.getItem(DP_STATE_KEY);
+    if (!raw) return;
+    var data = JSON.parse(raw);
+    if (data && Array.isArray(data.deliveryPlan)) {
+      state.deliveryPlan = data.deliveryPlan;
+    }
+  } catch(e) {}
+}
+
+function dpSaveTemplates() {
+  try {
+    var payload = {
+      templates: state.supplyPlanTemplates || [],
+      idx: state.supplyPlanTemplateIdx || 0,
+      savedAt: Date.now(),
+    };
+    localStorage.setItem(DP_TEMPLATES_KEY, JSON.stringify(payload));
+  } catch(e) {}
+}
+
+function dpLoadTemplates() {
+  try {
+    var raw = localStorage.getItem(DP_TEMPLATES_KEY);
+    if (!raw) return;
+    var data = JSON.parse(raw);
+    if (data && Array.isArray(data.templates)) {
+      state.supplyPlanTemplates = data.templates;
+      state.supplyPlanTemplateIdx = data.idx || 0;
+    }
+  } catch(e) {}
+}
+
+// Инициализируем state из localStorage при загрузке
+dpLoadState();
+
 // Стратегия (отдельный ключ от перераспределения по плану пользователя)
 var DP_STRATEGY_KEY = 'postal_dp_strategy';
 var dpStrategy = (function() {
@@ -4252,6 +4303,9 @@ function renderDpAddedTable() {
 
   // Обновляем виджеты справа
   if (typeof renderAllDpWidgets === 'function') renderAllDpWidgets();
+
+  // Сохраняем в localStorage
+  if (typeof dpSaveState === 'function') dpSaveState();
 }
 
 // Рендер раскрытой панели распределения (вставка под строку)
@@ -4938,6 +4992,8 @@ window.__dpSelection = new Set();
 // Шаблоны поставок, готовые для переноса в «Поставка»
 state.supplyPlanTemplates = state.supplyPlanTemplates || [];
 state.supplyPlanTemplateIdx = 0;
+// Загружаем из localStorage, если были сохранены
+dpLoadTemplates();
 
 function dpBbUpdate() {
   var bar = document.getElementById('dpBottomBar');
@@ -5077,6 +5133,7 @@ function dpConfirmAssemble() {
     };
   });
   state.supplyPlanTemplateIdx = 0;
+  dpSaveTemplates();
   dpHideAssembleModal();
   // Переход на раздел «Поставка» → Шаг 1
   var planTab = document.querySelector('.sidebar-item[data-tab="plan"]');
@@ -5098,6 +5155,7 @@ function applySupplyPlanTemplate(idx) {
 
   idx = Math.max(0, Math.min(templates.length - 1, idx));
   state.supplyPlanTemplateIdx = idx;
+  dpSaveTemplates();
   var tpl = templates[idx];
 
   nav.style.display = '';
@@ -5127,6 +5185,7 @@ function applySupplyPlanTemplate(idx) {
 function clearSupplyPlanTemplates() {
   state.supplyPlanTemplates = [];
   state.supplyPlanTemplateIdx = 0;
+  dpSaveTemplates();
   var nav = document.getElementById('supTemplateNav');
   if (nav) nav.style.display = 'none';
 }
@@ -5613,6 +5672,16 @@ function dpRenderAcMenu(menuEl, items) {
         clearSupplyPlanTemplates();
       }
     });
+
+    // Если после загрузки страницы есть сохранённые шаблоны — показать nav bar
+    if (state.supplyPlanTemplates && state.supplyPlanTemplates.length) {
+      applySupplyPlanTemplate(state.supplyPlanTemplateIdx || 0);
+    }
+
+    // Если после загрузки есть сохранённый план — пересчитать рендер
+    if (state.deliveryPlan && state.deliveryPlan.length) {
+      renderDpAddedTable();
+    }
 
     // Делегирование: поиск в dropdown аналогов
     if (tbody) tbody.addEventListener('input', function(e) {
