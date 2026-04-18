@@ -674,12 +674,44 @@
   /* =========== DELIVERY PLAN (Этап G) =========== */
   .dp-input-row {
     display: grid;
-    grid-template-columns: 1.5fr 1fr 0.8fr 0.8fr 0.8fr;
+    grid-template-columns: 1.5fr 1.2fr 0.8fr;
     gap: 12px;
   }
   @media (max-width: 980px) {
     .dp-input-row { grid-template-columns: 1fr 1fr; }
   }
+  .dp-autocomplete-wrap { position: relative; }
+  .dp-ac-menu {
+    position: absolute; top: calc(100% + 2px); left: 0; right: 0;
+    z-index: 50;
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+    padding: 6px;
+    max-height: 280px; overflow-y: auto;
+  }
+  .dp-ac-menu.hidden { display: none; }
+  .dp-ac-item {
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 7px 10px; border-radius: 4px; cursor: pointer;
+    font-size: 12px; transition: background 150ms;
+  }
+  .dp-ac-item:hover, .dp-ac-item.active { background: var(--accent-soft); }
+  .dp-ac-item-top {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px;
+  }
+  .dp-ac-vc {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500; color: var(--text);
+  }
+  .dp-ac-nm {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-dim); font-size: 11px;
+  }
+  .dp-ac-meta { font-size: 11px; color: var(--text-soft); }
+  .dp-ac-empty { padding: 10px; font-size: 12px; color: var(--text-soft); text-align: center; }
   .dp-status-pill {
     display: inline-block; padding: 2px 8px; border-radius: 100px;
     font-size: 11px; font-weight: 500; white-space: nowrap;
@@ -1655,11 +1687,20 @@ C-340,4,132,12,46.21"></textarea>
           </div>
         </div>
         <div class="dp-input-row" style="margin-top:14px">
-          <div><label>Артикул продавца</label><input id="dpVendorCode" autocomplete="off" placeholder="напр. ММММ"/></div>
-          <div><label>Артикул WB (nmId)</label><input id="dpNmId" type="number" placeholder="123456789"/></div>
-          <div><label>Коробок</label><input id="dpBoxes" type="number" min="1" value="1"/></div>
-          <div><label>Шт/коробка</label><input id="dpPerBox" type="number" min="1" placeholder="20"/></div>
-          <div><label>Итого шт</label><input id="dpTotal" readonly style="background:var(--surface-2);color:var(--text-dim)" tabindex="-1"/></div>
+          <div class="dp-autocomplete-wrap">
+            <label>Артикул продавца</label>
+            <input id="dpVendorCode" autocomplete="off" placeholder="напр. А519-2 ТН-10"/>
+            <div class="dp-ac-menu hidden" id="dpVcMenu" data-dp-ac-for="vc"></div>
+          </div>
+          <div class="dp-autocomplete-wrap">
+            <label>Артикул WB (nmId)</label>
+            <input id="dpNmId" type="text" inputmode="numeric" autocomplete="off" placeholder="123456789"/>
+            <div class="dp-ac-menu hidden" id="dpNmMenu" data-dp-ac-for="nm"></div>
+          </div>
+          <div>
+            <label>Коробок <span class="muted" style="font-size:11px;font-weight:normal">(по 8 пар)</span></label>
+            <input id="dpBoxes" type="number" min="1" value="1"/>
+          </div>
         </div>
         <div class="btn-row" style="margin-top:12px">
           <button class="btn" id="dpAdd" type="button">+ Добавить</button>
@@ -1679,8 +1720,7 @@ C-340,4,132,12,46.21"></textarea>
               <th class="col-sticky col-s1" style="left:30px;width:28px">#</th>
               <th>Артикул</th>
               <th class="num">Коробок</th>
-              <th class="num">Шт/кор</th>
-              <th class="num">Итого</th>
+              <th class="num">Итого, шт <span class="muted" style="font-size:10px;font-weight:normal">(по 8 пар)</span></th>
               <th>Статус</th>
               <th>Аналог</th>
               <th>Распределение</th>
@@ -3878,6 +3918,9 @@ function renderAllWidgets() {
 // Состояние для плана поставки
 if (typeof state !== 'undefined' && !state.deliveryPlan) state.deliveryPlan = [];
 
+// Число пар в коробке (константа, изменяется в разделе «Поставка» через ростовку)
+var DP_PAIRS_PER_BOX = 8;
+
 // Стратегия (отдельный ключ от перераспределения по плану пользователя)
 var DP_STRATEGY_KEY = 'postal_dp_strategy';
 var dpStrategy = (function() {
@@ -4189,7 +4232,6 @@ function renderDpAddedTable() {
       +   '<div class="muted" style="font-size:11px;font-family:\'JetBrains Mono\',monospace">' + (it.nmId || '—') + '</div></div>'
       + '</div></td>'
       + '<td class="num">' + it.boxes + '</td>'
-      + '<td class="num">' + it.perBox + '</td>'
       + '<td class="num"><strong>' + it.total + '</strong></td>'
       + '<td>' + dpStatusPill(statusCls) + '</td>'
       + '<td>' + dpRenderAnalogCell(it) + '</td>'
@@ -4862,22 +4904,22 @@ function dpAddFromDeficit(nmId) {
     alert('У артикула ' + nmId + ' нет дефицита.');
     return;
   }
-  var total = row.totalNeed;
-  var perBox = Math.min(20, total); // MVP: дефолт — макс 20 шт/кор
-  var boxes = Math.max(1, Math.ceil(total / perBox));
-  // Приводим итог точно к total: меняем perBox
-  perBox = Math.ceil(total / boxes);
+  var perBox = DP_PAIRS_PER_BOX;
+  // Округляем дефицит вверх до кратного perBox
+  var boxes = Math.max(1, Math.ceil(row.totalNeed / perBox));
+  var total = boxes * perBox;
   var meta = dpFindArticleMeta(nmId) || { brand: '', name: '' };
+  var vc = dpLookupVendorCode(Number(nmId)) || '';
   var item = {
     id: dpGenId(),
-    vendorCode: '',
+    vendorCode: vc,
     nmId: Number(nmId),
     boxes: boxes,
     perBox: perBox,
-    total: boxes * perBox,
+    total: total,
     brand: meta.brand,
     name: meta.name,
-    distribution: computeDeliveryDistribution(Number(nmId), boxes * perBox, dpStrategy),
+    distribution: computeDeliveryDistribution(Number(nmId), total, dpStrategy),
   };
   state.deliveryPlan.push(item);
   renderDpAddedTable();
@@ -5110,23 +5152,163 @@ function dpRecomputeAllForStrategy() {
   renderDpAddedTable();
 }
 
+// Поиск в nomen (кэш номенклатуры) — возвращает массив кандидатов для автокомплита
+function dpSearchNomen(query, mode) {
+  var q = String(query || '').trim().toLowerCase();
+  if (!q) return [];
+  var store;
+  try {
+    store = JSON.parse(localStorage.getItem('irp_nomenclature_v1') || '{}');
+  } catch(e) { store = {}; }
+
+  var results = [];
+  var seen = {};
+
+  // 1) Поиск в nomen-кэше (WB Content API)
+  if (store && store.byNm) {
+    Object.keys(store.byNm).forEach(function(nmId) {
+      var rec = store.byNm[nmId];
+      if (!rec) return;
+      var nmStr = String(rec.nmId || nmId);
+      var vcStr = String(rec.vendorCode || '').toLowerCase();
+      var match = false;
+      if (mode === 'vc') match = vcStr.indexOf(q) !== -1;
+      else if (mode === 'nm') match = nmStr.indexOf(q) !== -1;
+      else match = vcStr.indexOf(q) !== -1 || nmStr.indexOf(q) !== -1;
+      if (!match) return;
+      if (seen[nmStr]) return;
+      seen[nmStr] = true;
+      var meta = dpFindArticleMeta(Number(nmStr)) || { brand: '', name: '' };
+      results.push({
+        nmId: Number(nmStr),
+        vendorCode: rec.vendorCode || '',
+        brand: meta.brand,
+        name: meta.name,
+      });
+    });
+  }
+
+  // 2) Fallback / дополнение: state.articles (не в nomen, но есть история заказов)
+  if (state.articles && state.articles.length) {
+    state.articles.forEach(function(a) {
+      if (!a || !a.nmId) return;
+      var nmStr = String(a.nmId);
+      if (seen[nmStr]) return;
+      var nameStr = (a.name || '').toLowerCase();
+      var brandStr = (a.brand || '').toLowerCase();
+      var match = false;
+      if (mode === 'nm') match = nmStr.indexOf(q) !== -1;
+      else if (mode === 'vc') match = nameStr.indexOf(q) !== -1 || brandStr.indexOf(q) !== -1;
+      else match = nmStr.indexOf(q) !== -1 || nameStr.indexOf(q) !== -1 || brandStr.indexOf(q) !== -1;
+      if (!match) return;
+      seen[nmStr] = true;
+      results.push({
+        nmId: a.nmId,
+        vendorCode: '',
+        brand: a.brand || '',
+        name: a.name || '',
+      });
+    });
+  }
+  // Сортируем: точное совпадение в начале, короче vendorCode раньше
+  results.sort(function(a, b) {
+    var aVc = String(a.vendorCode || '').toLowerCase();
+    var bVc = String(b.vendorCode || '').toLowerCase();
+    if (mode === 'vc') {
+      var aExact = aVc === q ? 0 : (aVc.indexOf(q) === 0 ? 1 : 2);
+      var bExact = bVc === q ? 0 : (bVc.indexOf(q) === 0 ? 1 : 2);
+      if (aExact !== bExact) return aExact - bExact;
+      return aVc.length - bVc.length;
+    }
+    return 0;
+  });
+  return results.slice(0, 8);
+}
+
+// Рендер dropdown автокомплита
+function dpRenderAcMenu(menuEl, items) {
+  if (!menuEl) return;
+  if (!items.length) {
+    menuEl.innerHTML = '<div class="dp-ac-empty">Ничего не найдено</div>';
+    return;
+  }
+  menuEl.innerHTML = items.map(function(it) {
+    var brandPart = it.brand ? (it.brand + (it.name ? ' · ' + it.name : '')) : (it.name || '');
+    return '<div class="dp-ac-item" data-dp-ac-pick="1" data-dp-ac-vc="' + (it.vendorCode || '') + '" data-dp-ac-nm="' + it.nmId + '">'
+      + '<div class="dp-ac-item-top">'
+      +   '<span class="dp-ac-vc">' + (it.vendorCode || '—') + '</span>'
+      +   '<span class="dp-ac-nm">' + it.nmId + '</span>'
+      + '</div>'
+      + (brandPart ? '<div class="dp-ac-meta">' + brandPart + '</div>' : '')
+      + '</div>';
+  }).join('');
+}
+
 // ====== ОБРАБОТЧИКИ (инициализация один раз) ======
 (function initDeliveryPlanHandlers() {
   function init() {
     // Применяем стратегию к UI
     dpApplyStrategyUi();
 
-    // Пересчёт Итого при изменении коробок/шт
     var boxesEl = document.getElementById('dpBoxes');
-    var perBoxEl = document.getElementById('dpPerBox');
-    var totalEl = document.getElementById('dpTotal');
-    var recalcTotal = function() {
-      var b = Number(boxesEl.value) || 0;
-      var p = Number(perBoxEl.value) || 0;
-      totalEl.value = (b * p) || '';
-    };
-    if (boxesEl) boxesEl.addEventListener('input', recalcTotal);
-    if (perBoxEl) perBoxEl.addEventListener('input', recalcTotal);
+    var vcEl = document.getElementById('dpVendorCode');
+    var nmEl = document.getElementById('dpNmId');
+    var vcMenu = document.getElementById('dpVcMenu');
+    var nmMenu = document.getElementById('dpNmMenu');
+
+    // Автокомплит с дебаунсом
+    var __dpAcTimer = null;
+    function dpSetupAc(inputEl, menuEl, mode) {
+      if (!inputEl || !menuEl) return;
+      inputEl.addEventListener('input', function() {
+        clearTimeout(__dpAcTimer);
+        __dpAcTimer = setTimeout(function() {
+          var q = inputEl.value;
+          if (!q || q.length < 1) { menuEl.classList.add('hidden'); return; }
+          var results = dpSearchNomen(q, mode);
+          dpRenderAcMenu(menuEl, results);
+          menuEl.classList.remove('hidden');
+        }, 150);
+      });
+      inputEl.addEventListener('focus', function() {
+        if (inputEl.value) {
+          var results = dpSearchNomen(inputEl.value, mode);
+          if (results.length) {
+            dpRenderAcMenu(menuEl, results);
+            menuEl.classList.remove('hidden');
+          }
+        }
+      });
+      inputEl.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') menuEl.classList.add('hidden');
+        if (e.key === 'Enter' && !menuEl.classList.contains('hidden')) {
+          var first = menuEl.querySelector('[data-dp-ac-pick]');
+          if (first) { e.preventDefault(); first.click(); }
+        }
+      });
+      menuEl.addEventListener('click', function(e) {
+        var pick = e.target.closest('[data-dp-ac-pick]');
+        if (!pick) return;
+        var vc = pick.dataset.dpAcVc || '';
+        var nm = pick.dataset.dpAcNm || '';
+        if (vcEl) vcEl.value = vc;
+        if (nmEl) nmEl.value = nm;
+        menuEl.classList.add('hidden');
+        if (vcMenu) vcMenu.classList.add('hidden');
+        if (nmMenu) nmMenu.classList.add('hidden');
+        // Фокус на коробки
+        if (boxesEl) boxesEl.focus();
+      });
+    }
+    dpSetupAc(vcEl, vcMenu, 'vc');
+    dpSetupAc(nmEl, nmMenu, 'nm');
+
+    // Закрытие автокомплитов по клику вне
+    document.addEventListener('click', function(e) {
+      if (e.target.closest('.dp-autocomplete-wrap')) return;
+      if (vcMenu) vcMenu.classList.add('hidden');
+      if (nmMenu) nmMenu.classList.add('hidden');
+    });
 
     // Переключатель стратегии
     document.querySelectorAll('.strategy-opt[data-dp-strategy]').forEach(function(btn) {
@@ -5144,21 +5326,20 @@ function dpRecomputeAllForStrategy() {
     var addBtn = document.getElementById('dpAdd');
     var hintEl = document.getElementById('dpHint');
     if (addBtn) addBtn.addEventListener('click', function() {
-      var vc = (document.getElementById('dpVendorCode').value || '').trim();
-      var nmIdRaw = document.getElementById('dpNmId').value;
+      var vc = (vcEl ? vcEl.value : '').trim();
+      var nmIdRaw = nmEl ? nmEl.value : '';
       var nmId = Number(nmIdRaw);
       var boxes = Number(boxesEl.value) || 0;
-      var perBox = Number(perBoxEl.value) || 0;
+      var perBox = DP_PAIRS_PER_BOX;
       var total = boxes * perBox;
-      if (!nmId || !boxes || !perBox) {
-        if (hintEl) { hintEl.textContent = 'Заполни артикул WB, коробки и шт/коробка'; hintEl.style.color = 'var(--danger)'; }
+      if (!nmId || !boxes) {
+        if (hintEl) { hintEl.textContent = 'Выбери артикул WB и укажи кол-во коробок'; hintEl.style.color = 'var(--danger)'; }
         return;
       }
       if (hintEl) { hintEl.textContent = ''; hintEl.style.color = ''; }
 
       // Вычисляем распределение
       var dist = computeDeliveryDistribution(nmId, total, dpStrategy);
-      // Берём brand/name из state.articles
       var meta = dpFindArticleMeta(nmId) || { brand: '', name: '' };
       var item = {
         id: dpGenId(),
@@ -5173,10 +5354,12 @@ function dpRecomputeAllForStrategy() {
       };
       state.deliveryPlan.push(item);
       renderDpAddedTable();
-      // Очищаем форму (nmId и vendorCode), но оставляем коробки/perBox для удобства
-      document.getElementById('dpVendorCode').value = '';
-      document.getElementById('dpNmId').value = '';
-      document.getElementById('dpVendorCode').focus();
+      // Очищаем поля артикула, но оставляем коробки
+      if (vcEl) vcEl.value = '';
+      if (nmEl) nmEl.value = '';
+      if (vcMenu) vcMenu.classList.add('hidden');
+      if (nmMenu) nmMenu.classList.add('hidden');
+      if (vcEl) vcEl.focus();
     });
 
     // Очистить список
