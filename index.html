@@ -1054,6 +1054,8 @@
   .wb-cat-pill.has::before { content: '✓'; font-weight: 700; }
   .wb-cat-pill.miss::before { content: '✗'; font-weight: 700; opacity: 0.5; }
   .wb-cat-pill.miss { opacity: 0.45; filter: grayscale(0.2); }
+  /* Бит категории неизвестен в публичной документации WB — не помечаем */
+  .wb-cat-pill.unverified { opacity: 0.85; }
   /* Dark theme overrides */
   html.dark .wb-cat-pill.required { background: rgba(248,113,113,0.15); color: #F87171; }
   html.dark .wb-cat-pill.important { background: rgba(251,146,60,0.15); color: #FB923C; }
@@ -1555,7 +1557,7 @@
         <div class="wb-cat-row">
           <span class="wb-cat-pill important" data-wb-cat="analytics">Аналитика</span>
           <span class="wb-cat-pill important" data-wb-cat="supplies">Поставки</span>
-          <span class="wb-cat-pill important" data-wb-cat="tariffs">Тарифы</span>
+          <span class="wb-cat-pill important" data-wb-cat="finances">Финансы</span>
         </div>
       </div>
       <div class="wb-cat-group">
@@ -1566,10 +1568,13 @@
           <span class="wb-cat-pill optional" data-wb-cat="feedbacks">Вопросы и отзывы</span>
           <span class="wb-cat-pill optional" data-wb-cat="returns">Возвраты</span>
           <span class="wb-cat-pill optional" data-wb-cat="marketplace">Маркетплейс (FBS)</span>
+          <span class="wb-cat-pill optional" data-wb-cat="documents">Документы</span>
+          <span class="wb-cat-pill optional" data-wb-cat="chat">Чат с покупателем</span>
+          <span class="wb-cat-pill optional" data-wb-cat="users">Пользователи</span>
         </div>
       </div>
       <p class="muted" style="margin-top:12px;font-size:12px;line-height:1.5">
-        Для базовой работы нужны категории <strong style="color:var(--text)">Статистика</strong> + <strong style="color:var(--text)">Контент</strong>. Для полной функциональности рекомендуется подключить все обязательные и важные категории при создании токена в кабинете WB (Настройки → Доступ к API → Новый токен).
+        Для базовой работы нужны <strong style="color:var(--text)">Статистика</strong> + <strong style="color:var(--text)">Контент</strong>. Для полного функционала также рекомендуется: <strong style="color:var(--text)">Аналитика</strong> (для тарифов и ИЛ/ИРП), <strong style="color:var(--text)">Поставки</strong> (для создания поставок из Postal), <strong style="color:var(--text)">Финансы</strong> (для раздела Экономика).
       </p>
     </div>
 
@@ -3055,31 +3060,31 @@ function decodeWbToken(token) {
 }
 
 // Маска битов → название категории из payload.s
-// (официально WB публикует эту таблицу для токенов v2)
+// Значения могут потребовать коррекции по реальным токенам WB
 var WB_CATEGORY_BITS = {
-  content: 2,      // Bit 1 = 2
-  analytics: 4,    // Bit 2 = 4
-  prices: 8,       // Bit 3 = 8
-  marketplace: 16, // Bit 4 = 16
-  statistics: 32,  // Bit 5 = 32
-  promo: 64,       // Bit 6 = 64
-  feedbacks: 128,  // Bit 7 = 128
-  // Bit 8 = 256 (рекомендации — skip в нашем списке)
-  supplies: 512,   // Bit 9 = 512
-  returns: 1024,   // Bit 10 = 1024
-  // Bit 11 = 2048 — документы (skip)
-  // finances: 4096, — пока не используем, но оставим на будущее
-  // tariffs — часто доступен с Контент/Поставки, отдельного бита нет, считаем = supplies || content
+  content:     2,    // Bit 1
+  analytics:   4,    // Bit 2
+  prices:      8,    // Bit 3
+  marketplace: 16,   // Bit 4
+  statistics:  32,   // Bit 5
+  promo:       64,   // Bit 6
+  feedbacks:   128,  // Bit 7
+  // Bit 8 = 256 (рекомендации — skip)
+  supplies:    512,  // Bit 9
+  returns:     1024, // Bit 10
+  documents:   2048, // Bit 11
+  finances:    4096, // Bit 12
+  // chat/users — бит не опубликован в справке WB;
+  // pill помечается как 'unverified' (без ✓/✗)
+  chat:        null,
+  users:       null,
 };
 
 function wbHasCategory(payload, cat) {
   if (!payload) return false;
   var s = Number(payload.s || 0);
-  // Для тарифов — считаем доступными если есть Контент ИЛИ Поставки
-  if (cat === 'tariffs') {
-    return !!(s & WB_CATEGORY_BITS.content) || !!(s & WB_CATEGORY_BITS.supplies);
-  }
   var bit = WB_CATEGORY_BITS[cat];
+  if (bit === null) return null;     // бит неизвестен — pill помечается как unverified
   if (!bit) return false;
   return (s & bit) !== 0;
 }
@@ -3101,30 +3106,35 @@ function updateWbCategoryCheck(token) {
     return;
   }
 
-  // Проставляем состояния pill'ов
+  // Проставляем состояния pill'ов (null — unverified)
   pills.forEach(function(p) {
     var cat = p.dataset.wbCat;
-    p.classList.add(wbHasCategory(payload, cat) ? 'has' : 'miss');
+    var has = wbHasCategory(payload, cat);
+    if (has === null) p.classList.add('unverified');   // бит неизвестен
+    else p.classList.add(has ? 'has' : 'miss');
   });
 
   // Формируем summary
   var required = ['statistics', 'content'];
-  var missingRequired = required.filter(function(c) { return !wbHasCategory(payload, c); });
-  var important = ['analytics', 'supplies', 'tariffs'];
-  var missingImportant = important.filter(function(c) { return !wbHasCategory(payload, c); });
+  var missingRequired = required.filter(function(c) { return wbHasCategory(payload, c) !== true; });
+  var important = ['analytics', 'supplies', 'finances'];
+  var missingImportant = important.filter(function(c) { return wbHasCategory(payload, c) !== true; });
 
   var html = '<div class="wb-token-check-title">Ваш токен содержит права:</div>';
   // Показываем только краткую сводку (детали в pill'ах сверху)
   var labels = {
     statistics: 'Статистика', content: 'Контент',
-    analytics: 'Аналитика', supplies: 'Поставки', tariffs: 'Тарифы',
+    analytics: 'Аналитика', supplies: 'Поставки', finances: 'Финансы',
     prices: 'Цены', promo: 'Реклама', feedbacks: 'Отзывы',
-    returns: 'Возвраты', marketplace: 'FBS'
+    returns: 'Возвраты', marketplace: 'FBS',
+    documents: 'Документы', chat: 'Чат', users: 'Пользователи',
   };
-  var presentList = Object.keys(WB_CATEGORY_BITS).filter(function(c) { return wbHasCategory(payload, c); });
-  if (wbHasCategory(payload, 'tariffs')) presentList.push('tariffs');
+  var presentList = Object.keys(WB_CATEGORY_BITS)
+    .filter(function(c) { return wbHasCategory(payload, c) === true; });
   html += '<div style="color:var(--text-dim);margin-bottom:4px">Активные: '
-    + presentList.map(function(c) { return '<strong style="color:var(--text)">' + (labels[c] || c) + '</strong>'; }).join(', ')
+    + (presentList.length
+       ? presentList.map(function(c) { return '<strong style="color:var(--text)">' + (labels[c] || c) + '</strong>'; }).join(', ')
+       : '<em>нет подтверждённых</em>')
     + '</div>';
 
   if (missingRequired.length) {
