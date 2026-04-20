@@ -1031,6 +1031,59 @@
     font-weight: 600; font-size: 13px; color: var(--accent);
   }
 
+  /* Категории API-токена WB (Настройка) */
+  .wb-categories { margin: 8px 0 12px; }
+  .wb-cat-group { margin-bottom: 10px; }
+  .wb-cat-group-title {
+    font-size: 11px; font-weight: 600; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+  .wb-cat-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .wb-cat-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 100px;
+    font-size: 12px; font-weight: 500;
+    border: 0.5px solid transparent;
+    transition: opacity 150ms;
+  }
+  .wb-cat-pill.required { background: #FEE2E2; color: #DC2626; }
+  .wb-cat-pill.important { background: #FFEDD5; color: #EA580C; }
+  .wb-cat-pill.optional { background: #F3F4F6; color: #6B7280; }
+  /* Состояния после проверки токена */
+  .wb-cat-pill.has::before { content: '✓'; font-weight: 700; }
+  .wb-cat-pill.miss::before { content: '✗'; font-weight: 700; opacity: 0.5; }
+  .wb-cat-pill.miss { opacity: 0.45; filter: grayscale(0.2); }
+  /* Dark theme overrides */
+  html.dark .wb-cat-pill.required { background: rgba(248,113,113,0.15); color: #F87171; }
+  html.dark .wb-cat-pill.important { background: rgba(251,146,60,0.15); color: #FB923C; }
+  html.dark .wb-cat-pill.optional { background: rgba(156,163,175,0.12); color: #9CA3AF; }
+
+  /* Блок проверки реальных прав токена */
+  .wb-token-check {
+    margin-top: 10px; padding: 12px 14px;
+    background: var(--surface-2); border: 0.5px solid var(--border);
+    border-radius: 10px; font-size: 12px;
+  }
+  .wb-token-check-title {
+    font-size: 12px; font-weight: 600; color: var(--text);
+    margin-bottom: 8px;
+  }
+  .wb-token-warning {
+    margin-top: 10px; padding: 8px 12px;
+    background: var(--danger-soft); color: var(--danger);
+    border: 0.5px solid var(--danger-border); border-radius: 8px;
+    font-size: 12px; font-weight: 500;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .wb-token-ok {
+    margin-top: 10px; padding: 8px 12px;
+    background: var(--ok-soft); color: var(--ok);
+    border: 0.5px solid var(--ok-border); border-radius: 8px;
+    font-size: 12px; font-weight: 500;
+    display: flex; align-items: center; gap: 6px;
+  }
+
   /* Таблица шаблонов (Шаг 1, полировка) */
   .sup-tpl-table { width: 100%; min-width: 680px; font-size: 13px; }
   .sup-tpl-table th {
@@ -1486,8 +1539,44 @@
       <div id="syncStatus"></div>
     </div>
 
-    <label for="token">API-токен (категории: <code>Статистика</code> + <code>Контент</code>)</label>
-    <input type="password" id="token" placeholder="eyJhbGciOi..." autocomplete="off" />
+    <label for="token">API-токен Wildberries</label>
+
+    <!-- Список категорий API WB -->
+    <div class="wb-categories" id="wbCategoriesList">
+      <div class="wb-cat-group">
+        <div class="wb-cat-group-title">Обязательные <span class="muted" style="font-weight:normal;font-size:11px">(без них Postal не работает)</span></div>
+        <div class="wb-cat-row">
+          <span class="wb-cat-pill required" data-wb-cat="statistics">Статистика</span>
+          <span class="wb-cat-pill required" data-wb-cat="content">Контент</span>
+        </div>
+      </div>
+      <div class="wb-cat-group">
+        <div class="wb-cat-group-title">Важные <span class="muted" style="font-weight:normal;font-size:11px">(для полного функционала)</span></div>
+        <div class="wb-cat-row">
+          <span class="wb-cat-pill important" data-wb-cat="analytics">Аналитика</span>
+          <span class="wb-cat-pill important" data-wb-cat="supplies">Поставки</span>
+          <span class="wb-cat-pill important" data-wb-cat="tariffs">Тарифы</span>
+        </div>
+      </div>
+      <div class="wb-cat-group">
+        <div class="wb-cat-group-title">Дополнительные <span class="muted" style="font-weight:normal;font-size:11px">(для будущих фич)</span></div>
+        <div class="wb-cat-row">
+          <span class="wb-cat-pill optional" data-wb-cat="prices">Цены и скидки</span>
+          <span class="wb-cat-pill optional" data-wb-cat="promo">Продвижение</span>
+          <span class="wb-cat-pill optional" data-wb-cat="feedbacks">Вопросы и отзывы</span>
+          <span class="wb-cat-pill optional" data-wb-cat="returns">Возвраты</span>
+          <span class="wb-cat-pill optional" data-wb-cat="marketplace">Маркетплейс (FBS)</span>
+        </div>
+      </div>
+      <p class="muted" style="margin-top:12px;font-size:12px;line-height:1.5">
+        Для базовой работы нужны категории <strong style="color:var(--text)">Статистика</strong> + <strong style="color:var(--text)">Контент</strong>. Для полной функциональности рекомендуется подключить все обязательные и важные категории при создании токена в кабинете WB (Настройки → Доступ к API → Новый токен).
+      </p>
+    </div>
+
+    <input type="password" id="token" placeholder="eyJhbGciOi..." autocomplete="off" style="margin-top:4px"/>
+
+    <!-- Блок с проверкой реальных прав токена (появляется после ввода) -->
+    <div class="wb-token-check" id="wbTokenCheck" style="display:none"></div>
 
     <div class="input-row three" style="margin-top:14px">
       <div>
@@ -2946,6 +3035,141 @@ function applyTheme(theme) {
     sidebar.classList.remove('mobile-open');
     overlay.classList.remove('visible');
   });
+})();
+
+/* =========================================================
+   ПРОВЕРКА КАТЕГОРИЙ API-ТОКЕНА WB (Настройка)
+   ========================================================= */
+function decodeWbToken(token) {
+  if (!token || typeof token !== 'string') return null;
+  var parts = token.trim().split('.');
+  if (parts.length < 2) return null;
+  try {
+    var payloadRaw = parts[1];
+    // base64url → base64
+    payloadRaw = payloadRaw.replace(/-/g, '+').replace(/_/g, '/');
+    while (payloadRaw.length % 4) payloadRaw += '=';
+    var payload = JSON.parse(atob(payloadRaw));
+    return payload;
+  } catch(e) { return null; }
+}
+
+// Маска битов → название категории из payload.s
+// (официально WB публикует эту таблицу для токенов v2)
+var WB_CATEGORY_BITS = {
+  content: 2,      // Bit 1 = 2
+  analytics: 4,    // Bit 2 = 4
+  prices: 8,       // Bit 3 = 8
+  marketplace: 16, // Bit 4 = 16
+  statistics: 32,  // Bit 5 = 32
+  promo: 64,       // Bit 6 = 64
+  feedbacks: 128,  // Bit 7 = 128
+  // Bit 8 = 256 (рекомендации — skip в нашем списке)
+  supplies: 512,   // Bit 9 = 512
+  returns: 1024,   // Bit 10 = 1024
+  // Bit 11 = 2048 — документы (skip)
+  // finances: 4096, — пока не используем, но оставим на будущее
+  // tariffs — часто доступен с Контент/Поставки, отдельного бита нет, считаем = supplies || content
+};
+
+function wbHasCategory(payload, cat) {
+  if (!payload) return false;
+  var s = Number(payload.s || 0);
+  // Для тарифов — считаем доступными если есть Контент ИЛИ Поставки
+  if (cat === 'tariffs') {
+    return !!(s & WB_CATEGORY_BITS.content) || !!(s & WB_CATEGORY_BITS.supplies);
+  }
+  var bit = WB_CATEGORY_BITS[cat];
+  if (!bit) return false;
+  return (s & bit) !== 0;
+}
+
+function updateWbCategoryCheck(token) {
+  var checkEl = document.getElementById('wbTokenCheck');
+  var pills = document.querySelectorAll('.wb-cat-pill[data-wb-cat]');
+  // Сбросить состояния pill'ов
+  pills.forEach(function(p) { p.classList.remove('has', 'miss'); });
+  if (!checkEl) return;
+  if (!token || !token.trim()) {
+    checkEl.style.display = 'none';
+    return;
+  }
+  var payload = decodeWbToken(token);
+  if (!payload || typeof payload.s !== 'number') {
+    checkEl.style.display = 'block';
+    checkEl.innerHTML = '<div class="wb-token-warning">⚠️ Не удалось прочитать токен. Убедись что вставил полный JWT.</div>';
+    return;
+  }
+
+  // Проставляем состояния pill'ов
+  pills.forEach(function(p) {
+    var cat = p.dataset.wbCat;
+    p.classList.add(wbHasCategory(payload, cat) ? 'has' : 'miss');
+  });
+
+  // Формируем summary
+  var required = ['statistics', 'content'];
+  var missingRequired = required.filter(function(c) { return !wbHasCategory(payload, c); });
+  var important = ['analytics', 'supplies', 'tariffs'];
+  var missingImportant = important.filter(function(c) { return !wbHasCategory(payload, c); });
+
+  var html = '<div class="wb-token-check-title">Ваш токен содержит права:</div>';
+  // Показываем только краткую сводку (детали в pill'ах сверху)
+  var labels = {
+    statistics: 'Статистика', content: 'Контент',
+    analytics: 'Аналитика', supplies: 'Поставки', tariffs: 'Тарифы',
+    prices: 'Цены', promo: 'Реклама', feedbacks: 'Отзывы',
+    returns: 'Возвраты', marketplace: 'FBS'
+  };
+  var presentList = Object.keys(WB_CATEGORY_BITS).filter(function(c) { return wbHasCategory(payload, c); });
+  if (wbHasCategory(payload, 'tariffs')) presentList.push('tariffs');
+  html += '<div style="color:var(--text-dim);margin-bottom:4px">Активные: '
+    + presentList.map(function(c) { return '<strong style="color:var(--text)">' + (labels[c] || c) + '</strong>'; }).join(', ')
+    + '</div>';
+
+  if (missingRequired.length) {
+    html += '<div class="wb-token-warning">⚠️ Токен не содержит обязательных прав: '
+      + missingRequired.map(function(c) { return labels[c]; }).join(', ')
+      + '. Пересоздайте токен в кабинете WB.</div>';
+  } else if (missingImportant.length) {
+    html += '<div class="wb-token-warning" style="background:var(--warn-soft);color:var(--warn);border-color:var(--warn-border)">⚠️ Недостающие важные категории: '
+      + missingImportant.map(function(c) { return labels[c]; }).join(', ')
+      + '. Для полного функционала пересоздайте токен.</div>';
+  } else {
+    html += '<div class="wb-token-ok">✓ Токен содержит все обязательные и важные права.</div>';
+  }
+
+  // Инфо о токене (expiration если есть)
+  if (payload.exp) {
+    var expDate = new Date(payload.exp * 1000);
+    var daysLeft = Math.round((expDate.getTime() - Date.now()) / 86400000);
+    var expStr = expDate.toLocaleDateString('ru-RU');
+    var expColor = daysLeft < 30 ? 'var(--danger)' : daysLeft < 90 ? 'var(--warn)' : 'var(--text-dim)';
+    html += '<div style="margin-top:8px;font-size:11px;color:var(--text-dim)">Токен истекает: <strong style="color:' + expColor + '">' + expStr + '</strong> (через ' + daysLeft + ' дн)</div>';
+  }
+
+  checkEl.style.display = 'block';
+  checkEl.innerHTML = html;
+}
+
+// Инициализация обработчика (один раз)
+(function initWbTokenCheck() {
+  function init() {
+    var tokenEl = document.getElementById('token');
+    if (!tokenEl) return;
+    var timer = null;
+    tokenEl.addEventListener('input', function() {
+      clearTimeout(timer);
+      timer = setTimeout(function() { updateWbCategoryCheck(tokenEl.value); }, 250);
+    });
+    // Если токен уже есть при загрузке (из CabinetManager) — проверим
+    if (tokenEl.value) updateWbCategoryCheck(tokenEl.value);
+  }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(init, 100);
+  } else {
+    window.addEventListener('DOMContentLoaded', init);
+  }
 })();
 
 /* ---- Суб-табы «Поставка» ---- */
@@ -7197,6 +7421,8 @@ const CabinetManager = {
     const prx = document.getElementById('proxyUrl');
     if (tok) tok.value = cab.token || '';
     if (prx) prx.value = cab.proxy || '';
+    // Обновляем проверку категорий токена
+    if (typeof updateWbCategoryCheck === 'function') updateWbCategoryCheck(tok ? tok.value : '');
   },
 };
 
