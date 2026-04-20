@@ -1031,6 +1031,81 @@
     font-weight: 600; font-size: 13px; color: var(--accent);
   }
 
+  /* Таблица шаблонов (Шаг 1, полировка) */
+  .sup-tpl-table { width: 100%; min-width: 680px; font-size: 13px; }
+  .sup-tpl-table th {
+    text-align: left; padding: 8px 10px;
+    font-size: 11px; color: var(--text-dim); font-weight: 500;
+    border-bottom: 0.5px solid var(--border);
+    white-space: nowrap;
+  }
+  .sup-tpl-table td {
+    padding: 10px; border-bottom: 0.5px solid var(--surface-3);
+    vertical-align: top;
+  }
+  .sup-tpl-table tr:last-child td { border-bottom: none; }
+  .sup-tpl-table tr:hover td { background: var(--surface-2); }
+  .sup-tpl-table tr.tpl-applied td { opacity: 0.65; }
+  .sup-tpl-articles {
+    font-size: 11px; color: var(--text-dim);
+    max-width: 280px; overflow: hidden; text-overflow: ellipsis;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .sup-tpl-wh { font-weight: 500; color: var(--text); }
+  .sup-tpl-pill {
+    display: inline-block; padding: 2px 8px; border-radius: 100px;
+    font-size: 11px; font-weight: 500; white-space: nowrap;
+  }
+  .sup-tpl-pill.applied { background: var(--ok-soft); color: var(--ok); }
+  .sup-tpl-pill.invoice { background: var(--accent-soft); color: var(--accent); }
+  .sup-tpl-pill.ready { background: var(--surface-2); color: var(--text-dim); }
+
+  /* Карточка созданной поставки */
+  .sup-supply-card {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    box-shadow: var(--shadow);
+  }
+  .sup-supply-card.invoice-created { border-color: var(--ok-border); background: var(--ok-soft); }
+  .sup-supply-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; margin-bottom: 10px;
+  }
+  .sup-supply-wh {
+    font-size: 13px; font-weight: 600; color: var(--text);
+  }
+  .sup-supply-items {
+    font-size: 12px; color: var(--text-dim);
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 8px 0; border-top: 0.5px solid var(--border); border-bottom: 0.5px solid var(--border);
+  }
+  .sup-supply-item {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  }
+  .sup-supply-item-nm { color: var(--text); }
+  .sup-supply-item-qty { color: var(--accent); font-weight: 600; }
+  .sup-supply-total {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12px; font-weight: 600; margin-top: 8px; margin-bottom: 8px;
+  }
+  .sup-supply-total-qty { color: var(--accent); font-family: 'JetBrains Mono', monospace; }
+  .sup-supply-btn {
+    width: 100%; padding: 8px 12px; font-size: 13px;
+    background: var(--accent); color: var(--text-on-accent, #fff);
+    border: none; border-radius: 6px;
+    cursor: pointer; font-family: inherit; font-weight: 500;
+    transition: background 150ms;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .sup-supply-btn:hover { background: var(--accent-2); }
+  .sup-supply-btn.done {
+    background: var(--ok); color: #fff; cursor: default;
+  }
+  .sup-supply-btn.done:hover { background: var(--ok); }
+
   /* Coverage bars (G.4) */
   .coverage-row {
     display: grid; grid-template-columns: 70px 1fr 40px;
@@ -1551,17 +1626,39 @@ C-340,4,132,12,46.21"></textarea>
 
   <!-- Подпанель 1: План поставки -->
   <div class="sub-panel active" id="step-supply">
-  <!-- Навигация по шаблонам из «Плана поставки» (G.4) -->
-  <div class="card" id="supTemplateNav" style="display:none;background:var(--accent-soft);border-color:var(--accent-border);padding:10px 16px;margin-bottom:14px">
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <div style="flex:1;min-width:200px">
-        <strong id="supTplLabel" style="font-size:13px;color:var(--accent)">Шаблон 1 из 1</strong>
-        <div class="muted" id="supTplHint" style="font-size:11px;margin-top:2px">—</div>
+  <!-- Таблица шаблонов из «Плана поставки» (G.4 + полировка) -->
+  <div class="card" id="supTemplateNav" style="display:none;margin-bottom:14px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div>
+        <h3 style="margin:0;font-size:14px">Шаблоны из «Плана поставки»</h3>
+        <p class="muted" id="supTplSummary" style="margin:2px 0 0;font-size:12px">—</p>
       </div>
-      <button class="btn ghost" id="supTplPrev" type="button" style="padding:6px 10px;font-size:13px">◀ Назад</button>
-      <button class="btn ghost" id="supTplNext" type="button" style="padding:6px 10px;font-size:13px">Вперёд ▶</button>
-      <button class="btn ghost" id="supTplClear" type="button" style="padding:6px 10px;font-size:13px">Завершить</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn" id="supTplApply" type="button" disabled>Применить выбранные</button>
+        <button class="btn ghost" id="supTplClear" type="button">Завершить</button>
+      </div>
     </div>
+    <div class="redist-scroll" style="margin-top:12px">
+      <table class="redist-table sup-tpl-table" id="supTplTable">
+        <thead>
+          <tr>
+            <th style="width:30px"><input type="checkbox" id="supTplChkAll" title="Выбрать все"></th>
+            <th>Склад</th>
+            <th class="num">Артикулов</th>
+            <th class="num">Штук</th>
+            <th>Артикулы</th>
+            <th>Статус</th>
+          </tr>
+        </thead>
+        <tbody id="supTplTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Созданные поставки (после применения шаблонов) -->
+  <div id="supCreatedSupplies" style="display:none;margin-bottom:14px">
+    <h3 style="font-size:14px;margin:16px 0 10px">Созданные поставки <span class="muted" id="supCreatedCount" style="font-weight:normal;font-size:12px">(0)</span></h3>
+    <div id="supCreatedList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px"></div>
   </div>
   <div class="card">
     <h3 style="margin-top:0">Создать поставку</h3>
@@ -5130,64 +5227,192 @@ function dpConfirmAssemble() {
       warehouse: wh.name,
       items: wh.items.slice(),
       totalQty: wh.totalQty,
+      applied: false,
+      invoiceCreated: false,
     };
   });
   state.supplyPlanTemplateIdx = 0;
   dpSaveTemplates();
   dpHideAssembleModal();
-  // Переход на раздел «Поставка» → Шаг 1
+  // Переход на раздел «Поставка» → Шаг 1 → показ таблицы шаблонов
   var planTab = document.querySelector('.sidebar-item[data-tab="plan"]');
   if (planTab) planTab.click();
   setTimeout(function() {
     var step1 = document.querySelector('#planSubTabs .sub-tab[data-step="supply"]');
     if (step1) step1.click();
-    applySupplyPlanTemplate(0);
+    renderSupTemplatesTable();
   }, 100);
 }
 
-function applySupplyPlanTemplate(idx) {
+// Рендер таблицы шаблонов (замена prev/next на checkbox-based)
+function renderSupTemplatesTable() {
   var nav = document.getElementById('supTemplateNav');
-  var label = document.getElementById('supTplLabel');
-  var hint = document.getElementById('supTplHint');
+  var tbody = document.getElementById('supTplTbody');
+  var summary = document.getElementById('supTplSummary');
+  var applyBtn = document.getElementById('supTplApply');
+  if (!nav || !tbody) return;
   var templates = state.supplyPlanTemplates || [];
-  if (!nav) return;
-  if (!templates.length) { nav.style.display = 'none'; return; }
-
-  idx = Math.max(0, Math.min(templates.length - 1, idx));
-  state.supplyPlanTemplateIdx = idx;
-  dpSaveTemplates();
-  var tpl = templates[idx];
-
+  if (!templates.length) {
+    nav.style.display = 'none';
+    renderSupCreatedSupplies();
+    return;
+  }
   nav.style.display = '';
-  if (label) label.textContent = 'Шаблон ' + (idx + 1) + ' из ' + templates.length + ' · ' + tpl.warehouse;
-  if (hint) {
-    var artList = tpl.items.map(function(i) { return (i.vendorCode || i.nmId) + ' × ' + i.qty + ' шт'; }).slice(0, 3).join(' · ');
-    if (tpl.items.length > 3) artList += ' · ещё ' + (tpl.items.length - 3);
-    hint.textContent = tpl.items.length + ' артикул · ' + tpl.totalQty + ' шт · ' + artList;
+
+  var totalQty = templates.reduce(function(s, t) { return s + (t.totalQty || 0); }, 0);
+  var totalArts = templates.reduce(function(s, t) { return s + (t.items ? t.items.length : 0); }, 0);
+  var appliedCount = templates.filter(function(t) { return t.applied; }).length;
+  if (summary) {
+    summary.textContent = templates.length + ' поставок · ' + totalArts + ' позиций · ' + totalQty + ' шт'
+      + (appliedCount ? ' · применено ' + appliedCount : '');
   }
 
-  // Показать уведомление (первым артикулом заполним форму)
-  if (tpl.items.length && typeof showUndoToast === 'function') {
-    showUndoToast('Шаблон ' + (idx + 1) + '/' + templates.length + ' загружен: ' + tpl.warehouse + ' (' + tpl.totalQty + ' шт)', null, 4000);
+  var html = templates.map(function(t, idx) {
+    var items = t.items || [];
+    var totalBoxes = items.reduce(function(s, i) { return s + (i.boxes || 0); }, 0);
+    var preview = items.map(function(i) {
+      return (i.vendorCode || i.nmId) + '×' + i.qty;
+    }).slice(0, 3).join(', ');
+    if (items.length > 3) preview += ', +' + (items.length - 3);
+    var statusPill;
+    if (t.invoiceCreated) statusPill = '<span class="sup-tpl-pill invoice">✓ Накладная</span>';
+    else if (t.applied) statusPill = '<span class="sup-tpl-pill applied">✓ Применён</span>';
+    else statusPill = '<span class="sup-tpl-pill ready">Готов</span>';
+    var disabled = t.applied ? ' disabled' : '';
+    return '<tr class="' + (t.applied ? 'tpl-applied' : '') + '">'
+      + '<td><input type="checkbox" class="sup-tpl-chk" data-tpl-idx="' + idx + '"' + disabled + '></td>'
+      + '<td class="sup-tpl-wh">' + t.warehouse + '</td>'
+      + '<td class="num">' + items.length + '</td>'
+      + '<td class="num"><strong>' + t.totalQty + '</strong><div class="muted" style="font-size:10px;font-weight:normal">' + totalBoxes + ' кор</div></td>'
+      + '<td><div class="sup-tpl-articles" title="' + items.map(function(i){ return (i.vendorCode || i.nmId) + '×' + i.qty; }).join(', ') + '">' + preview + '</div></td>'
+      + '<td>' + statusPill + '</td>'
+      + '</tr>';
+  }).join('');
+  tbody.innerHTML = html;
+
+  if (applyBtn) {
+    var selectedCount = document.querySelectorAll('.sup-tpl-chk:checked').length;
+    applyBtn.disabled = selectedCount === 0;
+    applyBtn.textContent = selectedCount > 0 ? 'Применить выбранные (' + selectedCount + ')' : 'Применить выбранные';
   }
-  // Предзаполняем форму первым артикулом
-  var first = tpl.items[0];
-  if (first) {
-    var vcInput = document.getElementById('supVendorCode');
-    var nmInput = document.getElementById('supNmId');
-    var boxesInput = document.getElementById('supBoxes');
-    if (vcInput) vcInput.value = first.vendorCode || '';
-    if (nmInput) nmInput.value = first.nmId || '';
-    if (boxesInput) boxesInput.value = first.boxes || 1;
+
+  renderSupCreatedSupplies();
+}
+
+// Применить выбранные шаблоны (batch)
+function applySelectedTemplates() {
+  var checked = Array.from(document.querySelectorAll('.sup-tpl-chk:checked'));
+  if (checked.length === 0) return;
+  var applied = [];
+  checked.forEach(function(c) {
+    var idx = Number(c.dataset.tplIdx);
+    var tpl = state.supplyPlanTemplates[idx];
+    if (!tpl || tpl.applied) return;
+    tpl.applied = true;
+    tpl.appliedAt = Date.now();
+    applied.push(tpl);
+  });
+  dpSaveTemplates();
+  renderSupTemplatesTable();
+  if (applied.length && typeof showUndoToast === 'function') {
+    var msg = 'Применено ' + applied.length + ' шаблон' + (applied.length === 1 ? '' : applied.length < 5 ? 'а' : 'ов') + ': '
+      + applied.slice(0, 3).map(function(t) { return t.warehouse + ' (' + t.totalQty + ' шт)'; }).join(', ');
+    if (applied.length > 3) msg += '…';
+    showUndoToast(msg, null, 5000);
   }
+  // Скролл к секции созданных поставок
+  setTimeout(function() {
+    var el = document.getElementById('supCreatedSupplies');
+    if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
+}
+
+// Рендер карточек «Созданные поставки»
+function renderSupCreatedSupplies() {
+  var wrap = document.getElementById('supCreatedSupplies');
+  var list = document.getElementById('supCreatedList');
+  var countEl = document.getElementById('supCreatedCount');
+  if (!wrap || !list) return;
+  var templates = state.supplyPlanTemplates || [];
+  var applied = templates.filter(function(t) { return t.applied; });
+  if (!applied.length) {
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = '';
+  if (countEl) countEl.textContent = '(' + applied.length + ')';
+  var html = applied.map(function(t) {
+    var idx = templates.indexOf(t);
+    var totalBoxes = (t.items || []).reduce(function(s, i) { return s + (i.boxes || 0); }, 0);
+    var itemsHtml = (t.items || []).map(function(i) {
+      return '<div class="sup-supply-item">'
+        + '<span class="sup-supply-item-nm">' + (i.vendorCode || i.nmId) + ' — ' + i.qty + ' шт</span>'
+        + '<span class="sup-supply-item-qty">' + i.boxes + ' кор</span>'
+        + '</div>';
+    }).join('');
+    var btnHtml;
+    if (t.invoiceCreated) {
+      btnHtml = '<button class="sup-supply-btn done" type="button" disabled>✓ Накладная создана</button>';
+    } else {
+      btnHtml = '<button class="sup-supply-btn" type="button" data-sup-invoice-idx="' + idx + '">Перейти к накладной →</button>';
+    }
+    return '<div class="sup-supply-card' + (t.invoiceCreated ? ' invoice-created' : '') + '">'
+      + '<div class="sup-supply-head"><div class="sup-supply-wh">Поставка: ' + t.warehouse + '</div></div>'
+      + '<div class="sup-supply-items">' + itemsHtml + '</div>'
+      + '<div class="sup-supply-total"><span>Итого</span><span class="sup-supply-total-qty">' + t.totalQty + ' шт · ' + totalBoxes + ' кор</span></div>'
+      + btnHtml
+      + '</div>';
+  }).join('');
+  list.innerHTML = html;
+}
+
+// Перейти к накладной — заполнить Шаг 2 данными шаблона
+function goToInvoiceForTemplate(tplIdx) {
+  var tpl = state.supplyPlanTemplates[tplIdx];
+  if (!tpl) return;
+  // Очистим существующую накладную
+  if (typeof window.__clearInvoice === 'function') {
+    try { window.__clearInvoice(); } catch(e) {}
+  }
+  // Переключаемся на Шаг 2
+  var step2Btn = document.querySelector('#planSubTabs .sub-tab[data-step="invoice"]');
+  if (step2Btn) step2Btn.click();
+  // Добавляем строки для каждого артикула
+  setTimeout(function() {
+    (tpl.items || []).forEach(function(item) {
+      if (typeof window.__addInvRow === 'function') {
+        window.__addInvRow(item.vendorCode || String(item.nmId), item.boxes);
+      }
+    });
+    // Помечаем шаблон как "накладная открыта" (после фактической обработки меняется на invoiceCreated)
+    tpl.invoiceCreated = true;
+    tpl.invoiceCreatedAt = Date.now();
+    dpSaveTemplates();
+    renderSupTemplatesTable();
+    if (typeof showUndoToast === 'function') {
+      showUndoToast('Накладная открыта для: ' + tpl.warehouse + ' (' + tpl.items.length + ' позиций)', null, 3000);
+    }
+  }, 200);
+}
+
+// API-совместимость: оставляем старую функцию, чтобы не ломать загрузку при F5
+function applySupplyPlanTemplate(idx) {
+  renderSupTemplatesTable();
 }
 
 function clearSupplyPlanTemplates() {
+  var templates = state.supplyPlanTemplates || [];
+  var unapplied = templates.filter(function(t) { return !t.applied; });
+  if (unapplied.length > 0) {
+    if (!confirm('Есть ' + unapplied.length + ' неприменённых шаблонов. Точно завершить и очистить все?')) return;
+  }
   state.supplyPlanTemplates = [];
   state.supplyPlanTemplateIdx = 0;
   dpSaveTemplates();
   var nav = document.getElementById('supTemplateNav');
   if (nav) nav.style.display = 'none';
+  var wrap = document.getElementById('supCreatedSupplies');
+  if (wrap) wrap.style.display = 'none';
 }
 
 // Пересчёт всех items при смене стратегии
@@ -5657,25 +5882,61 @@ function dpRenderAcMenu(menuEl, items) {
       }
     });
 
-    // Навигация шаблонов в Шаг 1 «Поставка»
-    var tplPrev = document.getElementById('supTplPrev');
-    var tplNext = document.getElementById('supTplNext');
+    // Таблица шаблонов в Шаг 1 «Поставка» (чекбоксы + batch apply)
+    var tplTbody = document.getElementById('supTplTbody');
+    var tplChkAll = document.getElementById('supTplChkAll');
+    var tplApply = document.getElementById('supTplApply');
     var tplClear = document.getElementById('supTplClear');
-    if (tplPrev) tplPrev.addEventListener('click', function() {
-      applySupplyPlanTemplate((state.supplyPlanTemplateIdx || 0) - 1);
-    });
-    if (tplNext) tplNext.addEventListener('click', function() {
-      applySupplyPlanTemplate((state.supplyPlanTemplateIdx || 0) + 1);
-    });
-    if (tplClear) tplClear.addEventListener('click', function() {
-      if (confirm('Завершить работу с шаблонами? Неиспользованные шаблоны будут удалены.')) {
-        clearSupplyPlanTemplates();
+    var tplCreatedList = document.getElementById('supCreatedList');
+
+    // Чекбокс «Выбрать все»
+    if (tplChkAll) tplChkAll.addEventListener('change', function() {
+      document.querySelectorAll('.sup-tpl-chk:not([disabled])').forEach(function(c) {
+        c.checked = tplChkAll.checked;
+      });
+      if (typeof renderSupTemplatesTable === 'function') {
+        // Обновляем кнопку "Применить (N)"
+        var applyBtn = document.getElementById('supTplApply');
+        var cnt = document.querySelectorAll('.sup-tpl-chk:checked').length;
+        if (applyBtn) {
+          applyBtn.disabled = cnt === 0;
+          applyBtn.textContent = cnt > 0 ? 'Применить выбранные (' + cnt + ')' : 'Применить выбранные';
+        }
       }
     });
 
-    // Если после загрузки страницы есть сохранённые шаблоны — показать nav bar
+    // Отдельные чекбоксы → обновление кнопки
+    if (tplTbody) tplTbody.addEventListener('change', function(e) {
+      if (e.target && e.target.classList.contains('sup-tpl-chk')) {
+        var applyBtn = document.getElementById('supTplApply');
+        var cnt = document.querySelectorAll('.sup-tpl-chk:checked').length;
+        if (applyBtn) {
+          applyBtn.disabled = cnt === 0;
+          applyBtn.textContent = cnt > 0 ? 'Применить выбранные (' + cnt + ')' : 'Применить выбранные';
+        }
+        // Синхронизируем «Выбрать все»
+        var allChk = document.getElementById('supTplChkAll');
+        if (allChk) {
+          var totalChks = document.querySelectorAll('.sup-tpl-chk:not([disabled])').length;
+          allChk.checked = cnt === totalChks && totalChks > 0;
+        }
+      }
+    });
+
+    if (tplApply) tplApply.addEventListener('click', applySelectedTemplates);
+    if (tplClear) tplClear.addEventListener('click', clearSupplyPlanTemplates);
+
+    // Делегирование: переход к накладной из карточки
+    if (tplCreatedList) tplCreatedList.addEventListener('click', function(e) {
+      var btn = e.target.closest('[data-sup-invoice-idx]');
+      if (!btn) return;
+      var idx = Number(btn.dataset.supInvoiceIdx);
+      goToInvoiceForTemplate(idx);
+    });
+
+    // Если после загрузки страницы есть сохранённые шаблоны — показать таблицу
     if (state.supplyPlanTemplates && state.supplyPlanTemplates.length) {
-      applySupplyPlanTemplate(state.supplyPlanTemplateIdx || 0);
+      renderSupTemplatesTable();
     }
 
     // Если после загрузки есть сохранённый план — пересчитать рендер
@@ -8831,6 +9092,9 @@ renderProgress();
     box.appendChild(row);
     return row;
   }
+  // Экспорт для использования из раздела «План поставки»
+  window.__addInvRow = addInvRow;
+  window.__clearInvoice = clearInvoice;
 
   function clearInvoice() {
     $('invRows').innerHTML = '';
