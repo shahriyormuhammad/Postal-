@@ -1161,6 +1161,35 @@
   }
   .sup-supply-btn.done:hover { background: var(--ok); }
 
+  /* Форма поставки: input-row с динамической колонкой профиля (J.2) */
+  .sup-input-row {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 0.9fr;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .sup-input-row:has(#supProfileWrap[style*="display:none"]),
+  .sup-input-row:has(#supProfileWrap[style="display:none"]) {
+    /* fallback: остаётся 3 колонки если профиль скрыт */
+  }
+  .sup-input-row > #supProfileWrap[style*="display:none"] ~ * { /* placeholder */ }
+  /* Когда supProfileWrap виден — растягиваем до 4 колонок */
+  .sup-input-row:has(#supProfileWrap:not([style*="display:none"])) {
+    grid-template-columns: 1.3fr 1fr 1.4fr 0.9fr;
+  }
+  @media (max-width: 980px) {
+    .sup-input-row { grid-template-columns: 1fr 1fr; }
+    .sup-input-row:has(#supProfileWrap:not([style*="display:none"])) { grid-template-columns: 1fr 1fr; }
+  }
+  .sp-profile-select {
+    width: 100%; padding: 10px 12px;
+    border: 0.5px solid var(--border); border-radius: var(--radius);
+    background: var(--surface); color: var(--text);
+    font-family: inherit; font-size: 13px;
+    cursor: pointer;
+  }
+  .sp-profile-select:focus { outline: none; border-color: var(--accent); }
+
   /* Профили ростовок (J.1) */
   .sp-toolbar { display:flex; gap:12px; align-items:center; margin-bottom:14px; }
   .sp-search-wrap { position:relative; flex:1; max-width:320px; }
@@ -1902,7 +1931,7 @@ C-340,4,132,12,46.21"></textarea>
     <h3 style="margin-top:0">Создать поставку</h3>
     <p class="muted" style="margin-bottom:14px">Введите артикул и ростовку (размер × шт в 1 коробке). При повторном вводе того же Vendor Code ростовка подтянется автоматически.</p>
 
-    <div class="input-row three">
+    <div class="sup-input-row">
       <div id="supVcWrap" style="position:relative">
         <label>Артикул продавца</label>
         <input id="supVendorCode" placeholder="напр. ММММ" autocomplete="off"/>
@@ -1910,6 +1939,10 @@ C-340,4,132,12,46.21"></textarea>
       <div>
         <label>Артикул WB</label>
         <input id="supNmId" type="number" placeholder="123456789"/>
+      </div>
+      <div id="supProfileWrap" style="display:none">
+        <label>Профиль ростовки</label>
+        <select id="supProfile" class="sp-profile-select"></select>
       </div>
       <div>
         <label>Количество коробок</label>
@@ -4852,6 +4885,75 @@ function spSaveFromModal() {
   }
 }
 
+// J.2: API для использования профилей в форме «Поставка → Шаг 1»
+// Получить профили для nmId (default первым)
+function spGetProfilesForNmId(nmId) {
+  if (!nmId) return [];
+  return getProfilesForArticle(nmId);
+}
+
+// Считать nmId с формы и обновить дропдаун (вызывается при изменениях артикула)
+function spRefreshSupProfileSelectFromForm() {
+  var nmEl = document.getElementById('supNmId');
+  if (!nmEl) return;
+  var nmId = Number(nmEl.value);
+  if (!nmId) {
+    var w = document.getElementById('supProfileWrap');
+    if (w) w.style.display = 'none';
+    return null;
+  }
+  return spRefreshSupProfileSelect(nmId, null);
+}
+
+// Применить выбранный профиль к ростовке (#supSizesRows)
+function spApplySelectedProfileToForm() {
+  var profile = spGetSelectedProfile();
+  if (!profile) return;
+  if (typeof window.__renderSizeRows === 'function') {
+    window.__renderSizeRows(profile.sizes);
+  }
+}
+
+// Заполнить #supProfile <select> профилями артикула; вернуть выбранный профиль
+function spRefreshSupProfileSelect(nmId, preferredId) {
+  var wrap = document.getElementById('supProfileWrap');
+  var sel = document.getElementById('supProfile');
+  if (!wrap || !sel) return null;
+  var profiles = spGetProfilesForNmId(nmId);
+  if (!profiles.length) {
+    wrap.style.display = 'none';
+    sel.innerHTML = '';
+    return null;
+  }
+  // Если только 1 профиль (default Стандарт) — скрываем select для упрощения UI
+  if (profiles.length === 1) {
+    wrap.style.display = 'none';
+    sel.innerHTML = '<option value="' + profiles[0].id + '">' + profiles[0].name + '</option>';
+    sel.value = profiles[0].id;
+    return profiles[0];
+  }
+  wrap.style.display = '';
+  sel.innerHTML = profiles.map(function(p) {
+    var rangeStr = profileSizesShort(p);
+    var label = p.name + ' (' + rangeStr + ') — ' + p.totalPerBox + ' пар';
+    return '<option value="' + p.id + '">' + label + '</option>';
+  }).join('');
+  // Выбираем preferredId если есть, иначе default, иначе первый
+  var chosen = null;
+  if (preferredId) chosen = profiles.find(function(p) { return p.id === preferredId; });
+  if (!chosen) chosen = profiles.find(function(p) { return p.isDefault; });
+  if (!chosen) chosen = profiles[0];
+  sel.value = chosen.id;
+  return chosen;
+}
+
+// Получить выбранный сейчас профиль (или default fallback)
+function spGetSelectedProfile() {
+  var sel = document.getElementById('supProfile');
+  if (!sel || !sel.value) return null;
+  return state.sizeProfiles.find(function(p) { return p.id === sel.value; }) || null;
+}
+
 function deleteSizeProfile(profileId) {
   var profile = state.sizeProfiles.find(function(p) { return p.id === profileId; });
   if (!profile) return;
@@ -4925,8 +5027,33 @@ function deleteSizeProfile(profileId) {
       }
     });
 
+    // J.2: интеграция с формой Шаг 1 раздела «Поставка»
+    var supProfileSel = document.getElementById('supProfile');
+    if (supProfileSel) {
+      supProfileSel.addEventListener('change', spApplySelectedProfileToForm);
+    }
+    // При изменении nmId или vendorCode — обновить дропдаун профилей
+    var supNmEl = document.getElementById('supNmId');
+    var supVcEl = document.getElementById('supVendorCode');
+    var refreshTimer = null;
+    var debouncedRefresh = function() {
+      clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(function() {
+        spRefreshSupProfileSelectFromForm();
+      }, 200);
+    };
+    if (supNmEl) {
+      supNmEl.addEventListener('input', debouncedRefresh);
+      supNmEl.addEventListener('change', debouncedRefresh);
+    }
+    if (supVcEl) {
+      supVcEl.addEventListener('blur', debouncedRefresh);
+    }
+
     // Первый рендер
     setTimeout(renderSizeProfilesList, 100);
+    // Первичная проверка профилей для текущего nmId формы
+    setTimeout(spRefreshSupProfileSelectFromForm, 200);
   }
   if (document.readyState === 'complete' || document.readyState === 'interactive') setTimeout(init, 100);
   else window.addEventListener('DOMContentLoaded', init);
@@ -8804,6 +8931,8 @@ renderProgress();
       : sizes.map(s => rowTemplate(s.size, s.perBox, s.barcode || ''));
     box.innerHTML = SUP_HEADER_HTML + list.join('');
   }
+  // J.2: экспорт для использования из «Профиля ростовок» в Настройке
+  window.__renderSizeRows = renderSizeRows;
 
   function addSizeRow(size = '', perBox = '', barcode = '') {
     const box = $('supSizesRows');
@@ -8832,6 +8961,8 @@ renderProgress();
     if (!hit) return;
     if (hit.nmId != null && !$('supNmId').value) $('supNmId').value = hit.nmId;
     if (Array.isArray(hit.sizes) && hit.sizes.length) renderSizeRows(hit.sizes);
+    // J.2: обновить дропдаун профилей если они есть
+    if (typeof spRefreshSupProfileSelectFromForm === 'function') spRefreshSupProfileSelectFromForm();
   }
 
   // ===== Автодополнение артикула продавца =====
@@ -8985,6 +9116,8 @@ renderProgress();
     const base = `размеры подтянуты (${labels[hit.source] || hit.source})`;
     const tail = hit.templateName ? ` • применён шаблон «${hit.templateName}»` : '';
     setPullStatus(base + tail, 'ok');
+    // J.2: обновить дропдаун профилей
+    if (typeof spRefreshSupProfileSelectFromForm === 'function') spRefreshSupProfileSelectFromForm();
   }
 
   // Импорт CSV номенклатуры
@@ -9242,9 +9375,12 @@ renderProgress();
         const marker = r.barcode ? '' : ' <span style="color:var(--danger)">⚠</span>';
         return `${escHtml(r.size)}×${r.perBox}${marker}`;
       }).join(', ');
+      const profileBadge = it.profileName
+        ? `<div class="art-sub" style="color:var(--accent);font-size:11px">профиль: ${escHtml(it.profileName)}</div>`
+        : '';
       return `
         <tr>
-          <td><strong>${escHtml(it.vendorCode)}</strong>${it.nmId ? `<div class="art-sub">nmId ${escHtml(it.nmId)}</div>` : ''}</td>
+          <td><strong>${escHtml(it.vendorCode)}</strong>${it.nmId ? `<div class="art-sub">nmId ${escHtml(it.nmId)}</div>` : ''}${profileBadge}</td>
           <td style="font-size:12px; color:var(--text-dim)">${sizesStr}</td>
           <td class="num">${it.sumPerBox}</td>
           <td class="num">${it.boxes}</td>
@@ -9257,7 +9393,7 @@ renderProgress();
       <table>
         <thead>
           <tr>
-            <th>Артикул</th>
+            <th>Артикул / Профиль</th>
             <th>Ростовка</th>
             <th class="num">Шт/коробка</th>
             <th class="num">Коробок</th>
@@ -9319,9 +9455,17 @@ renderProgress();
     const totalPieces = sumPerBox * boxes;
     const missingBc = rows.filter(r => r.total > 0 && !r.barcode).length;
 
-    // Если такой артикул (vendorCode регистронезависимо) уже есть — обновляем
-    const idx = supplyList.findIndex(x => normKey(x.vendorCode) === normKey(vendorCode));
-    const item = { vendorCode, nmId, boxes, sumPerBox, totalPieces, rows, missingBc };
+    // J.2: фиксируем профиль если выбран — позволяет один артикул × несколько профилей
+    var selectedProfile = (typeof spGetSelectedProfile === 'function') ? spGetSelectedProfile() : null;
+    var profileId = selectedProfile ? selectedProfile.id : '';
+    var profileName = selectedProfile ? selectedProfile.name : '';
+
+    // Дедупликация по (vendorCode + profileId): один и тот же артикул с разными профилями = разные позиции
+    const idx = supplyList.findIndex(x =>
+      normKey(x.vendorCode) === normKey(vendorCode)
+      && (x.profileId || '') === profileId
+    );
+    const item = { vendorCode, nmId, boxes, sumPerBox, totalPieces, rows, missingBc, profileId, profileName };
     if (idx !== -1) supplyList[idx] = item;
     else supplyList.push(item);
 
