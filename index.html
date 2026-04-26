@@ -1161,6 +1161,50 @@
   }
   .sup-supply-btn.done:hover { background: var(--ok); }
 
+  /* Превью коробов Шаг 3 (J.3) */
+  .shk-boxes-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 10px;
+  }
+  .shk-box-card {
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: 10px; padding: 10px 12px;
+    box-shadow: var(--shadow);
+  }
+  .shk-box-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 8px; margin-bottom: 4px;
+  }
+  .shk-box-art strong { font-size: 13px; color: var(--text); }
+  .shk-box-code {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: var(--text-dim); white-space: nowrap;
+    background: var(--surface-2); padding: 2px 6px; border-radius: 4px;
+  }
+  .shk-box-profile {
+    font-size: 11px; color: var(--accent); margin-bottom: 8px;
+  }
+  .shk-box-content {
+    border-top: 0.5px solid var(--border); padding-top: 6px; margin-top: 4px;
+  }
+  .shk-box-content-row {
+    display: grid; grid-template-columns: 36px 60px 1fr;
+    gap: 6px; align-items: center;
+    padding: 3px 0; font-size: 11px;
+  }
+  .shk-box-size { font-weight: 600; color: var(--text); }
+  .shk-box-qty { color: var(--text-dim); white-space: nowrap; }
+  .shk-box-bc {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: var(--text-soft); overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .shk-box-total {
+    font-size: 11px; color: var(--text-dim); margin-top: 6px;
+    padding-top: 6px; border-top: 0.5px solid var(--border);
+    text-align: right; font-weight: 500;
+  }
+
   /* Форма поставки: input-row с динамической колонкой профиля (J.2) */
   .sup-input-row {
     display: grid;
@@ -9652,15 +9696,26 @@ renderProgress();
     for (var a = 0; a < supplyList.length; a++) {
       var art = supplyList[a];
       var content = [];
+      var contentDetail = []; // J.3: для UI превью с размером + штрихкодом
       for (var r = 0; r < art.rows.length; r++) {
         if (art.rows[r].perBox > 0 && art.rows[r].barcode) {
           content.push({ barcode: art.rows[r].barcode, qty: art.rows[r].perBox });
+          contentDetail.push({ size: art.rows[r].size, barcode: art.rows[r].barcode, qty: art.rows[r].perBox });
         }
       }
       for (var b = 0; b < art.boxes; b++) {
         if (shkIdx >= boxCount) break;
         var code = 'WB_' + String(startNum + BigInt(shkIdx));
-        boxes.push({ shkCode: code, items: content.slice() });
+        boxes.push({
+          shkCode: code,
+          items: content.slice(),
+          // J.3: метаданные для превью
+          articleVc: art.vendorCode,
+          articleNm: art.nmId,
+          profileName: art.profileName || '',
+          contentDetail: contentDetail.slice(),
+          sumPerBox: art.sumPerBox || 0,
+        });
         shkIdx++;
       }
       if (shkIdx >= boxCount) break;
@@ -9690,17 +9745,34 @@ renderProgress();
         '<div style="font-size:22px; font-weight:600">' + totalPcs + '</div>' +
         '<div class="muted" style="font-size:12px">штук</div></div>';
 
-    var previewLimit = Math.min(aoa.length, 51);
-    var html = '<table class="data-table"><thead><tr>';
-    for (var h = 0; h < aoa[0].length; h++) html += '<th>' + aoa[0][h] + '</th>';
-    html += '</tr></thead><tbody>';
-    for (var pr = 1; pr < previewLimit; pr++) {
-      html += '<tr>';
-      for (var c = 0; c < aoa[pr].length; c++) html += '<td>' + escHtml(String(aoa[pr][c])) + '</td>';
-      html += '</tr>';
-    }
-    html += '</tbody></table>';
-    if (aoa.length > 51) html += '<p class="muted">Показаны первые 50 строк из ' + (aoa.length - 1) + '</p>';
+    // J.3: новый превью с карточками коробок (артикул + профиль + состав)
+    var previewBoxes = boxes.slice(0, 30);
+    var html = '<div class="shk-boxes-grid">';
+    previewBoxes.forEach(function(bx) {
+      var contentRows = bx.contentDetail.map(function(c) {
+        return '<div class="shk-box-content-row">'
+          + '<span class="shk-box-size">' + escHtml(c.size) + '</span>'
+          + '<span class="shk-box-qty">× ' + c.qty + ' пар</span>'
+          + '<span class="shk-box-bc">' + escHtml(c.barcode) + '</span>'
+          + '</div>';
+      }).join('');
+      var profileBadge = bx.profileName
+        ? '<div class="shk-box-profile">профиль: ' + escHtml(bx.profileName) + '</div>'
+        : '';
+      html += '<div class="shk-box-card">'
+        + '<div class="shk-box-head">'
+        +   '<div class="shk-box-art"><strong>' + escHtml(bx.articleVc) + '</strong>'
+        +     (bx.articleNm ? '<span class="muted" style="font-size:10px;margin-left:6px">nmId ' + escHtml(String(bx.articleNm)) + '</span>' : '')
+        +   '</div>'
+        +   '<span class="shk-box-code">' + escHtml(bx.shkCode) + '</span>'
+        + '</div>'
+        + profileBadge
+        + '<div class="shk-box-content">' + contentRows + '</div>'
+        + '<div class="shk-box-total">Итого: ' + bx.sumPerBox + ' пар</div>'
+        + '</div>';
+    });
+    html += '</div>';
+    if (boxes.length > 30) html += '<p class="muted" style="margin-top:10px">Показаны первые 30 коробов из ' + boxes.length + '. В XLSX будут все.</p>';
     $('shkPreview').innerHTML = html;
     $('shkResultWrap').style.display = '';
 
@@ -10177,6 +10249,21 @@ renderProgress();
         continue;
       }
 
+      // J.3: если для nmId есть профили ростовок — используем default
+      // (если их несколько, можно пометить пользователю в результате)
+      var jProfile = null, jProfilesCount = 0;
+      if (typeof spGetProfilesForNmId === 'function' && (found.nmId || nmIdRec)) {
+        var profiles = spGetProfilesForNmId(found.nmId || nmIdRec);
+        jProfilesCount = profiles.length;
+        if (profiles.length) {
+          jProfile = profiles.find(function(p) { return p.isDefault; }) || profiles[0];
+          // Заменяем размеры на размеры профиля
+          found.sizes = jProfile.sizes.map(function(s) {
+            return { size: s.size, perBox: s.perBox, barcode: s.barcode || '' };
+          });
+        }
+      }
+
       const sumPerBox = found.sizes.reduce((a, s) => a + (s.perBox || 0), 0);
       if (sumPerBox <= 0) {
         // Артикул найден, но perBox=0 → нет сохранённой ростовки, и шаблон размеров не подошёл.
@@ -10190,8 +10277,13 @@ renderProgress();
         continue;
       }
 
-      // Если такой артикул уже в списке — суммируем коробки, иначе добавляем новый.
-      const idx = supplyList.findIndex(x => normKey(x.vendorCode) === normKey(vc));
+      // J.3: дедупликация по (vendorCode + profileId), как в Шаге 1
+      var jProfileId = jProfile ? jProfile.id : '';
+      var jProfileName = jProfile ? jProfile.name : '';
+      const idx = supplyList.findIndex(x =>
+        normKey(x.vendorCode) === normKey(vc)
+        && (x.profileId || '') === jProfileId
+      );
       const prevBoxes = idx !== -1 ? (supplyList[idx].boxes || 0) : 0;
       const newBoxes = prevBoxes + it.boxes;
 
@@ -10212,7 +10304,9 @@ renderProgress();
         sumPerBox: sumPerBox,
         totalPieces: totalPieces,
         rows: rows,
-        missingBc: missingBc
+        missingBc: missingBc,
+        profileId: jProfileId,
+        profileName: jProfileName
       };
 
       if (idx !== -1) supplyList[idx] = item;
@@ -10226,7 +10320,9 @@ renderProgress();
         matched: {
           vendorCode: vc,
           matchType: match.matchType,
-          addedPieces: sumPerBox * it.boxes
+          addedPieces: sumPerBox * it.boxes,
+          profileName: jProfileName,
+          profilesAvailable: jProfilesCount
         },
         reason: null
       });
@@ -10243,8 +10339,15 @@ renderProgress();
 
     // Итоговая таблица
     const rowsHtml = results.map(r => {
+      var profileNote = '';
+      if (r.matched && r.matched.profileName) {
+        var multiHint = (r.matched.profilesAvailable > 1)
+          ? ' <span class="muted" style="font-size:10px">(из ' + r.matched.profilesAvailable + ')</span>'
+          : '';
+        profileNote = '<div style="font-size:11px;color:var(--accent);margin-top:2px">профиль: ' + escHtml(r.matched.profileName) + multiHint + '</div>';
+      }
       const statusCell = r.matched
-        ? '<td><span style="color:var(--ok)">&#10003; ' + escHtml(r.matched.vendorCode) + '</span> <span class="muted" style="font-size:11px">(' + escHtml(r.matched.matchType) + ')</span></td>' +
+        ? '<td><span style="color:var(--ok)">&#10003; ' + escHtml(r.matched.vendorCode) + '</span> <span class="muted" style="font-size:11px">(' + escHtml(r.matched.matchType) + ')</span>' + profileNote + '</td>' +
           '<td class="num">+' + r.matched.addedPieces + '</td>'
         : '<td><span style="color:var(--danger)">' + escHtml(r.reason || 'не найдено') + '</span></td>' +
           '<td class="num">—</td>';
