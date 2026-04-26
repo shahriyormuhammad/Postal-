@@ -1161,6 +1161,107 @@
   }
   .sup-supply-btn.done:hover { background: var(--ok); }
 
+  /* Профили ростовок (J.1) */
+  .sp-toolbar { display:flex; gap:12px; align-items:center; margin-bottom:14px; }
+  .sp-search-wrap { position:relative; flex:1; max-width:320px; }
+  .sp-search {
+    width:100%; padding:6px 10px 6px 32px; font-size:12px;
+    background:var(--surface-2); border:0.5px solid var(--border);
+    border-radius:6px; color:var(--text); font-family:inherit;
+  }
+  .sp-search:focus { outline:none; border-color:var(--accent); background:var(--surface); }
+
+  .sp-card {
+    border:0.5px solid var(--border); border-radius:10px;
+    padding:14px 16px; margin-bottom:10px; background:var(--surface);
+  }
+  .sp-card.is-wide { border-color:var(--warn-border); background:var(--warn-soft); }
+  .sp-card-head {
+    display:flex; justify-content:space-between; align-items:flex-start; gap:12px;
+    flex-wrap:wrap;
+  }
+  .sp-card-title { font-size:13px; }
+  .sp-card-title strong { color:var(--text); font-weight:600; }
+  .sp-card-title .muted { font-size:11px; margin-left:6px; }
+  .sp-range { font-size:11px; color:var(--text-dim); margin-top:4px; }
+  .sp-warn { font-size:11px; color:var(--warn); margin-top:4px; font-weight:500; }
+  .sp-add-profile { font-size:12px; padding:6px 12px; }
+
+  .sp-profiles-list { margin-top:10px; display:flex; flex-direction:column; gap:6px; }
+  .sp-profile-row {
+    display:flex; align-items:center; gap:10px;
+    padding:8px 10px; background:var(--surface-2); border-radius:6px;
+    font-size:12px;
+  }
+  .sp-profile-name { font-weight:500; color:var(--text); flex:1; min-width:0; }
+  .sp-profile-meta { color:var(--text-dim); font-size:11px; white-space:nowrap; }
+  .sp-default-pill {
+    font-size:10px; background:var(--accent-soft); color:var(--accent);
+    padding:2px 8px; border-radius:100px; white-space:nowrap;
+  }
+  .sp-edit, .sp-del {
+    background:none; border:none; cursor:pointer; padding:4px 6px;
+    border-radius:4px; color:var(--text-dim); font-size:14px;
+    transition:background 150ms, color 150ms;
+  }
+  .sp-edit:hover { background:var(--accent-soft); color:var(--accent); }
+  .sp-del:hover { background:var(--danger-soft); color:var(--danger); }
+
+  /* Модалка профиля */
+  .sp-modal-section-title {
+    font-size:11px; font-weight:600; color:var(--text-dim);
+    text-transform:uppercase; letter-spacing:0.04em;
+    margin:14px 0 6px;
+  }
+  .sp-name-input {
+    width:100%; padding:8px 10px; font-size:13px;
+    border:0.5px solid var(--border); border-radius:6px;
+    background:var(--surface); color:var(--text);
+    font-family:inherit;
+  }
+  .sp-name-input:focus { outline:none; border-color:var(--accent); }
+  .sp-size-grid {
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(64px, 1fr));
+    gap:6px;
+  }
+  .sp-size-chk {
+    display:flex; align-items:center; justify-content:center; gap:5px;
+    padding:6px 10px; border:0.5px solid var(--border);
+    border-radius:6px; cursor:pointer; user-select:none;
+    font-size:12px; transition:background 150ms, border-color 150ms;
+  }
+  .sp-size-chk:hover { background:var(--surface-2); }
+  .sp-size-chk.checked { background:var(--accent-soft); border-color:var(--accent-border); color:var(--accent); }
+  .sp-size-chk input { margin:0; }
+
+  .sp-perbox-table {
+    width:100%; font-size:12px; margin-top:6px; border-collapse:collapse;
+  }
+  .sp-perbox-table th, .sp-perbox-table td {
+    padding:6px 8px; text-align:left;
+    border-bottom:0.5px solid var(--surface-3);
+  }
+  .sp-perbox-table th { color:var(--text-dim); font-weight:500; font-size:11px; }
+  .sp-perbox-table tr:last-child td { border-bottom:none; }
+  .sp-perbox-input {
+    width:60px; padding:3px 6px; font-size:12px;
+    border:0.5px solid var(--border); border-radius:4px;
+    text-align:right; background:var(--surface); color:var(--text);
+    font-family:'JetBrains Mono', monospace;
+  }
+  .sp-perbox-input:focus { outline:none; border-color:var(--accent); }
+  .sp-perbox-bc {
+    color:var(--text-dim); font-family:'JetBrains Mono', monospace; font-size:10px;
+  }
+  .sp-perbox-total {
+    font-weight:600; padding:10px 8px 0; margin-top:6px;
+    border-top:0.5px solid var(--border); font-size:13px;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .sp-perbox-total .num {
+    color:var(--accent); font-family:'JetBrains Mono', monospace;
+  }
+
   /* Coverage bars (G.4) */
   .coverage-row {
     display: grid; grid-template-columns: 70px 1fr 40px;
@@ -1619,6 +1720,39 @@
     <h3 style="margin-top:0">Таблица КРП (напоминание)</h3>
     <div class="krp-table" id="krpTable"></div>
     <p class="muted" style="margin-top:12px">Обрати внимание на обрыв: 59,99% → 60,00% = КРП резко падает с 2% до 0%. Вся стратегия — подтянуть топ-артикулы до 60%+.</p>
+  </div>
+
+  <!-- Ростовки (J.1) -->
+  <div class="card">
+    <h3 style="margin-top:0">Ростовки</h3>
+    <p class="muted" style="margin-bottom:14px;font-size:13px">Управляй профилями ростовок для артикулов с несколькими размерными группами (например, подростковая и взрослая в разных коробках).</p>
+
+    <div class="sp-toolbar">
+      <div class="sp-search-wrap">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-soft);position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="spSearch" placeholder="Поиск по артикулу или vendorCode…" class="sp-search">
+      </div>
+      <span class="muted" id="spCounter" style="font-size:12px"></span>
+    </div>
+
+    <div id="spList"></div>
+    <div id="spEmpty" class="muted" style="padding:20px;text-align:center;font-size:13px">Нет данных — синхронизируй кабинет, чтобы появились артикулы.</div>
+  </div>
+
+  <!-- Модалка создания/редактирования профиля -->
+  <div id="spModal" class="dp-modal hidden">
+    <div class="dp-modal-overlay" id="spModalOverlay"></div>
+    <div class="dp-modal-content" style="width:min(560px,90vw)">
+      <div class="dp-modal-head">
+        <h3 id="spModalTitle">Новый профиль</h3>
+        <button class="dp-modal-close" id="spModalClose" type="button" aria-label="Закрыть">&times;</button>
+      </div>
+      <div class="dp-modal-body" id="spModalBody"></div>
+      <div class="dp-modal-actions">
+        <button class="btn ghost" id="spModalCancel" type="button">Отмена</button>
+        <button class="btn" id="spModalSave" type="button">Создать профиль</button>
+      </div>
+    </div>
   </div>
 
   <!-- Опасная зона: сброс данных -->
@@ -2984,6 +3118,7 @@ document.querySelectorAll('.sidebar-item').forEach(function(btn) {
       if (typeof renderDpDeficitTable === 'function') renderDpDeficitTable();
       if (typeof renderAllDpWidgets === 'function') setTimeout(renderAllDpWidgets, 100);
     }
+    if (btn.dataset.tab === 'setup' && typeof renderSizeProfilesList === 'function') renderSizeProfilesList();
     // На мобильном — закрыть sidebar
     var sb = document.getElementById('sidebar');
     if (sb) sb.classList.remove('mobile-open');
@@ -4335,6 +4470,467 @@ function dpLoadTemplates() {
 
 // Инициализируем state из localStorage при загрузке
 dpLoadState();
+
+/* =========================================================
+   ПРОФИЛИ РОСТОВОК (J.1)
+   Несколько именованных профилей размер×perBox на один nmId.
+   Источник размеров — irp_nomenclature_v1 (NOMEN_KEY).
+   Сами профили хранятся в postal_size_profiles.
+   ========================================================= */
+var SIZE_PROFILES_KEY = 'postal_size_profiles';
+state.sizeProfiles = state.sizeProfiles || [];
+
+function loadSizeProfiles() {
+  try {
+    var raw = localStorage.getItem(SIZE_PROFILES_KEY);
+    state.sizeProfiles = raw ? (JSON.parse(raw) || []) : [];
+  } catch(e) { state.sizeProfiles = []; }
+}
+
+function saveSizeProfiles() {
+  try { localStorage.setItem(SIZE_PROFILES_KEY, JSON.stringify(state.sizeProfiles || [])); } catch(e) {}
+}
+
+// Чтение nomen из localStorage (паттерн как в loadNomen() из IIFE раздела «Поставка»)
+function spLoadNomenStore() {
+  try {
+    var raw = localStorage.getItem('irp_nomenclature_v1');
+    if (!raw) return { byNm: {}, byVc: {} };
+    return JSON.parse(raw) || { byNm: {}, byVc: {} };
+  } catch(e) { return { byNm: {}, byVc: {} }; }
+}
+
+// Сортировка размеров по числовому значению (с fallback к строковому)
+function spSortSizes(sizes) {
+  return sizes.slice().sort(function(a, b) {
+    var na = parseFloat(a.size), nb = parseFloat(b.size);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return String(a.size).localeCompare(String(b.size));
+  });
+}
+
+// Все артикулы из nomen с размерами (для рендера)
+function getNomenArticles() {
+  var store = spLoadNomenStore();
+  if (!store || !store.byNm) return [];
+  var byNmArticleName = {};
+  if (state.articles && state.articles.length) {
+    state.articles.forEach(function(a) { if (a && a.nmId) byNmArticleName[a.nmId] = a.name || ''; });
+  }
+  return Object.keys(store.byNm).map(function(nm) {
+    var rec = store.byNm[nm];
+    var sizes = Array.isArray(rec.sizes) ? rec.sizes.filter(function(s) { return s && s.size; }) : [];
+    return {
+      nmId: Number(rec.nmId || nm),
+      vendorCode: rec.vendorCode || '',
+      name: byNmArticleName[Number(nm)] || byNmArticleName[Number(rec.nmId)] || '',
+      sizes: spSortSizes(sizes),
+    };
+  }).filter(function(a) { return a.nmId && a.sizes.length; })
+    .sort(function(a, b) { return String(a.vendorCode).localeCompare(String(b.vendorCode)); });
+}
+
+// Автодетект «широкого ряда»: ≥8 размеров ИЛИ диапазон чисел ≥7
+function isWideRange(sizes) {
+  if (!sizes || sizes.length < 2) return false;
+  if (sizes.length >= 8) return true;
+  var nums = sizes.map(function(s) { return parseFloat(s.size); }).filter(function(n) { return !isNaN(n); });
+  if (nums.length >= 2) {
+    var range = Math.max.apply(null, nums) - Math.min.apply(null, nums);
+    if (range >= 7) return true;
+  }
+  return false;
+}
+
+function spGenId() { return 'sp_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6); }
+
+// Лениво создать «Стандарт» профиль для артикула
+function ensureDefaultProfile(article) {
+  var existing = state.sizeProfiles.find(function(p) {
+    return String(p.nmId) === String(article.nmId) && p.isDefault === true;
+  });
+  if (existing) return existing;
+  var profile = {
+    id: spGenId(),
+    nmId: article.nmId,
+    vendorCode: article.vendorCode || '',
+    name: 'Стандарт',
+    sizes: article.sizes.map(function(s) {
+      return { size: s.size, perBox: 1, barcode: s.barcode || '' };
+    }),
+    totalPerBox: article.sizes.length,
+    isDefault: true,
+    createdAt: Date.now(),
+  };
+  state.sizeProfiles.push(profile);
+  return profile;
+}
+
+function getProfilesForArticle(nmId) {
+  return state.sizeProfiles
+    .filter(function(p) { return String(p.nmId) === String(nmId); })
+    .sort(function(a, b) {
+      if (a.isDefault && !b.isDefault) return -1;
+      if (!a.isDefault && b.isDefault) return 1;
+      return (a.createdAt || 0) - (b.createdAt || 0);
+    });
+}
+
+function describeRange(sizes) {
+  if (!sizes || !sizes.length) return '—';
+  var nums = sizes.map(function(s) { return parseFloat(s.size); }).filter(function(n) { return !isNaN(n); });
+  if (nums.length >= 2) {
+    var min = Math.min.apply(null, nums), max = Math.max.apply(null, nums);
+    return min + '-' + max + ' (' + sizes.length + ' размер' + (sizes.length === 1 ? '' : sizes.length < 5 ? 'а' : 'ов') + ')';
+  }
+  return sizes.length + ' размер' + (sizes.length === 1 ? '' : sizes.length < 5 ? 'а' : 'ов');
+}
+
+function profileSizesShort(p) {
+  if (!p || !p.sizes || !p.sizes.length) return '—';
+  var nums = p.sizes.map(function(s) { return parseFloat(s.size); }).filter(function(n) { return !isNaN(n); });
+  if (nums.length >= 2) {
+    var min = Math.min.apply(null, nums), max = Math.max.apply(null, nums);
+    return min + '-' + max;
+  }
+  return p.sizes.map(function(s) { return s.size; }).slice(0, 3).join(', ');
+}
+
+// Главный рендер
+function renderSizeProfilesList() {
+  var listEl = document.getElementById('spList');
+  var emptyEl = document.getElementById('spEmpty');
+  var counterEl = document.getElementById('spCounter');
+  var searchEl = document.getElementById('spSearch');
+  if (!listEl) return;
+
+  var articles = getNomenArticles();
+  if (!articles.length) {
+    listEl.innerHTML = '';
+    if (emptyEl) emptyEl.style.display = '';
+    if (counterEl) counterEl.textContent = '';
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = 'none';
+
+  // Лениво создаём «Стандарт» для всех (idempotent)
+  var hasNew = false;
+  articles.forEach(function(a) {
+    var before = state.sizeProfiles.length;
+    ensureDefaultProfile(a);
+    if (state.sizeProfiles.length > before) hasNew = true;
+  });
+  if (hasNew) saveSizeProfiles();
+
+  // Фильтр поиска
+  var q = (searchEl && searchEl.value || '').toLowerCase().trim();
+  var filtered = articles.filter(function(a) {
+    if (!q) return true;
+    return String(a.nmId).indexOf(q) !== -1
+      || (a.vendorCode || '').toLowerCase().indexOf(q) !== -1
+      || (a.name || '').toLowerCase().indexOf(q) !== -1;
+  });
+
+  if (counterEl) {
+    counterEl.textContent = filtered.length === articles.length
+      ? articles.length + ' артикул' + (articles.length === 1 ? '' : articles.length < 5 ? 'а' : 'ов')
+      : filtered.length + ' / ' + articles.length;
+  }
+
+  // Рендер карточек
+  listEl.innerHTML = filtered.map(function(a) {
+    var wide = isWideRange(a.sizes);
+    var profiles = getProfilesForArticle(a.nmId);
+    var profilesHtml = profiles.map(function(p) {
+      var defPill = p.isDefault ? '<span class="sp-default-pill">по умолчанию</span>' : '';
+      var delBtn = p.isDefault ? '' : '<button class="sp-del" data-sp-del="' + p.id + '" title="Удалить">✗</button>';
+      return '<div class="sp-profile-row">'
+        + '<span class="sp-profile-name">' + (p.name || 'Без названия') + ' <span class="muted" style="font-weight:normal">(' + profileSizesShort(p) + ')</span></span>'
+        + '<span class="sp-profile-meta">' + p.sizes.length + ' разм · ' + p.totalPerBox + ' пар/кор</span>'
+        + defPill
+        + '<button class="sp-edit" data-sp-edit="' + p.id + '" title="Редактировать">✎</button>'
+        + delBtn
+        + '</div>';
+    }).join('');
+
+    return '<div class="sp-card' + (wide ? ' is-wide' : '') + '" data-sp-nm="' + a.nmId + '">'
+      + '<div class="sp-card-head">'
+      +   '<div class="sp-card-title">'
+      +     '<strong>' + (a.vendorCode || '—') + '</strong>'
+      +     (a.name ? '<span class="muted">' + a.name + '</span>' : '')
+      +     '<div class="sp-range">Полный ряд: ' + describeRange(a.sizes) + ' · nmId ' + a.nmId + '</div>'
+      +     (wide ? '<div class="sp-warn">⚠️ Широкий ряд — рекомендуем разделить на несколько профилей</div>' : '')
+      +   '</div>'
+      +   '<button class="btn ghost sp-add-profile" data-sp-add="' + a.nmId + '" type="button">+ Создать профиль</button>'
+      + '</div>'
+      + '<div class="sp-profiles-list">' + profilesHtml + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+// ====== МОДАЛКА ======
+
+function spOpenModal(mode, ctx) {
+  var modal = document.getElementById('spModal');
+  var titleEl = document.getElementById('spModalTitle');
+  var saveBtn = document.getElementById('spModalSave');
+  var bodyEl = document.getElementById('spModalBody');
+  if (!modal || !bodyEl) return;
+
+  var article = null, profile = null;
+  if (mode === 'create') {
+    var arts = getNomenArticles();
+    article = arts.find(function(a) { return String(a.nmId) === String(ctx.nmId); });
+    if (!article) { alert('Не найден артикул в номенклатуре'); return; }
+    profile = {
+      id: null, nmId: article.nmId, vendorCode: article.vendorCode || '',
+      name: '', sizes: [], totalPerBox: 0, isDefault: false,
+    };
+  } else if (mode === 'edit') {
+    profile = state.sizeProfiles.find(function(p) { return p.id === ctx.profileId; });
+    if (!profile) { alert('Профиль не найден'); return; }
+    var arts2 = getNomenArticles();
+    article = arts2.find(function(a) { return String(a.nmId) === String(profile.nmId); });
+    if (!article) { alert('Не найден артикул в номенклатуре'); return; }
+  } else return;
+
+  if (titleEl) titleEl.textContent = mode === 'edit' ? 'Редактировать профиль' : ('Новый профиль для ' + (article.vendorCode || article.nmId));
+  if (saveBtn) saveBtn.textContent = mode === 'edit' ? 'Сохранить' : 'Создать профиль';
+
+  // Какие размеры checked
+  var checkedSet = {};
+  if (mode === 'edit') profile.sizes.forEach(function(s) { checkedSet[s.size] = s.perBox; });
+  else article.sizes.forEach(function(s) { checkedSet[s.size] = 1; });
+
+  var sizesHtml = article.sizes.map(function(s) {
+    var checked = (s.size in checkedSet);
+    return '<label class="sp-size-chk' + (checked ? ' checked' : '') + '" data-sp-size="' + s.size + '">'
+      + '<input type="checkbox" data-sp-size-chk="' + s.size + '"' + (checked ? ' checked' : '') + '> '
+      + s.size
+      + '</label>';
+  }).join('');
+
+  bodyEl.innerHTML = ''
+    + '<div class="sp-modal-section-title">Название профиля</div>'
+    + '<input type="text" class="sp-name-input" id="spInputName" placeholder="напр. Подростковая 37-41" value="' + (profile.name || '') + '">'
+    + '<div class="sp-modal-section-title">Выбери размеры (' + article.sizes.length + ' доступно)</div>'
+    + '<div class="sp-size-grid" id="spSizeGrid">' + sizesHtml + '</div>'
+    + '<div class="sp-modal-section-title">Шт в коробке для каждого размера</div>'
+    + '<table class="sp-perbox-table" id="spPerboxTable"><tbody></tbody></table>'
+    + '<div class="sp-perbox-total">Итого пар в коробке: <span class="num" id="spTotalPerBox">0</span></div>'
+    + '<p class="muted" style="font-size:11px;margin-top:8px">Штрихкоды приходят с WB и не редактируются.</p>';
+
+  // Сохраняем контекст для save
+  modal.__spCtx = { mode: mode, article: article, profile: profile };
+
+  // Первый рендер таблицы
+  spUpdatePerboxTable();
+  modal.classList.remove('hidden');
+  setTimeout(function() {
+    var nameEl = document.getElementById('spInputName');
+    if (nameEl && mode === 'create') nameEl.focus();
+  }, 50);
+}
+
+function spCloseModal() {
+  var modal = document.getElementById('spModal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.__spCtx = null;
+  }
+}
+
+// Перерисовать таблицу perBox по чекнутым размерам
+function spUpdatePerboxTable() {
+  var modal = document.getElementById('spModal');
+  if (!modal || !modal.__spCtx) return;
+  var ctx = modal.__spCtx;
+  var article = ctx.article;
+  var tbody = document.querySelector('#spPerboxTable tbody');
+  var totalEl = document.getElementById('spTotalPerBox');
+  if (!tbody) return;
+
+  // Текущие perBox значения (берём из inputs если они есть, иначе из ctx.profile)
+  var currentPerBox = {};
+  document.querySelectorAll('[data-sp-perbox-input]').forEach(function(inp) {
+    currentPerBox[inp.dataset.spPerboxInput] = Number(inp.value) || 0;
+  });
+  if (!Object.keys(currentPerBox).length) {
+    if (ctx.profile && ctx.profile.sizes) ctx.profile.sizes.forEach(function(s) { currentPerBox[s.size] = s.perBox; });
+  }
+
+  // Какие checked сейчас
+  var checked = [];
+  document.querySelectorAll('[data-sp-size-chk]').forEach(function(c) {
+    if (c.checked) {
+      var size = c.dataset.spSizeChk;
+      var info = article.sizes.find(function(s) { return s.size === size; });
+      if (info) checked.push({ size: size, barcode: info.barcode || '', perBox: currentPerBox[size] != null ? currentPerBox[size] : 1 });
+    }
+  });
+
+  if (!checked.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="muted" style="text-align:center;padding:16px">Выбери хотя бы один размер</td></tr>';
+    if (totalEl) totalEl.textContent = '0';
+    return;
+  }
+
+  // Сортируем
+  checked = spSortSizes(checked);
+  tbody.innerHTML = '<tr><th style="width:80px">Размер</th><th style="width:100px">Шт в коробке</th><th>Штрихкод</th></tr>'
+    + checked.map(function(s) {
+      return '<tr>'
+        + '<td><strong>' + s.size + '</strong></td>'
+        + '<td><input type="number" class="sp-perbox-input" data-sp-perbox-input="' + s.size + '" min="1" value="' + s.perBox + '"></td>'
+        + '<td><span class="sp-perbox-bc">' + (s.barcode || '—') + '</span></td>'
+        + '</tr>';
+    }).join('');
+
+  spRecalcTotal();
+}
+
+function spRecalcTotal() {
+  var totalEl = document.getElementById('spTotalPerBox');
+  if (!totalEl) return;
+  var sum = 0;
+  document.querySelectorAll('[data-sp-perbox-input]').forEach(function(inp) {
+    sum += Math.max(0, Number(inp.value) || 0);
+  });
+  totalEl.textContent = sum;
+}
+
+function spSaveFromModal() {
+  var modal = document.getElementById('spModal');
+  if (!modal || !modal.__spCtx) return;
+  var ctx = modal.__spCtx;
+  var article = ctx.article;
+  var profile = ctx.profile;
+
+  var nameEl = document.getElementById('spInputName');
+  var name = (nameEl ? nameEl.value : '').trim();
+  if (name.length < 2) { alert('Название слишком короткое (минимум 2 символа)'); return; }
+
+  var sizes = [];
+  document.querySelectorAll('[data-sp-perbox-input]').forEach(function(inp) {
+    var sz = inp.dataset.spPerboxInput;
+    var pb = Math.max(1, Number(inp.value) || 0);
+    var info = article.sizes.find(function(s) { return s.size === sz; });
+    sizes.push({ size: sz, perBox: pb, barcode: info ? (info.barcode || '') : '' });
+  });
+
+  if (!sizes.length) { alert('Выбери хотя бы один размер'); return; }
+
+  sizes = spSortSizes(sizes);
+  var totalPerBox = sizes.reduce(function(s, x) { return s + x.perBox; }, 0);
+
+  if (ctx.mode === 'edit' && profile && profile.id) {
+    var idx = state.sizeProfiles.findIndex(function(p) { return p.id === profile.id; });
+    if (idx !== -1) {
+      state.sizeProfiles[idx].name = name;
+      state.sizeProfiles[idx].sizes = sizes;
+      state.sizeProfiles[idx].totalPerBox = totalPerBox;
+      state.sizeProfiles[idx].updatedAt = Date.now();
+    }
+  } else {
+    state.sizeProfiles.push({
+      id: spGenId(),
+      nmId: article.nmId,
+      vendorCode: article.vendorCode || '',
+      name: name,
+      sizes: sizes,
+      totalPerBox: totalPerBox,
+      isDefault: false,
+      createdAt: Date.now(),
+    });
+  }
+
+  saveSizeProfiles();
+  spCloseModal();
+  renderSizeProfilesList();
+  if (typeof showUndoToast === 'function') {
+    showUndoToast(ctx.mode === 'edit' ? 'Профиль обновлён' : 'Профиль создан', null, 2500);
+  }
+}
+
+function deleteSizeProfile(profileId) {
+  var profile = state.sizeProfiles.find(function(p) { return p.id === profileId; });
+  if (!profile) return;
+  if (profile.isDefault) {
+    alert('Профиль по умолчанию нельзя удалить.');
+    return;
+  }
+  if (!confirm('Удалить профиль «' + profile.name + '»?')) return;
+  state.sizeProfiles = state.sizeProfiles.filter(function(p) { return p.id !== profileId; });
+  saveSizeProfiles();
+  renderSizeProfilesList();
+  if (typeof showUndoToast === 'function') showUndoToast('Профиль удалён', null, 2500);
+}
+
+// ====== ИНИЦИАЛИЗАЦИЯ ОБРАБОТЧИКОВ ======
+(function initSizeProfilesHandlers() {
+  function init() {
+    loadSizeProfiles();
+
+    var searchEl = document.getElementById('spSearch');
+    if (searchEl) {
+      var t = null;
+      searchEl.addEventListener('input', function() {
+        clearTimeout(t);
+        t = setTimeout(renderSizeProfilesList, 150);
+      });
+    }
+
+    var listEl = document.getElementById('spList');
+    if (listEl) listEl.addEventListener('click', function(e) {
+      var add = e.target.closest('[data-sp-add]');
+      if (add) { spOpenModal('create', { nmId: Number(add.dataset.spAdd) }); return; }
+      var edit = e.target.closest('[data-sp-edit]');
+      if (edit) { spOpenModal('edit', { profileId: edit.dataset.spEdit }); return; }
+      var del = e.target.closest('[data-sp-del]');
+      if (del) { deleteSizeProfile(del.dataset.spDel); return; }
+    });
+
+    // Модалка
+    var ov = document.getElementById('spModalOverlay');
+    if (ov) ov.addEventListener('click', spCloseModal);
+    var cl = document.getElementById('spModalClose');
+    if (cl) cl.addEventListener('click', spCloseModal);
+    var cancel = document.getElementById('spModalCancel');
+    if (cancel) cancel.addEventListener('click', spCloseModal);
+    var saveBtn = document.getElementById('spModalSave');
+    if (saveBtn) saveBtn.addEventListener('click', spSaveFromModal);
+
+    // Делегирование в body модалки: чекбоксы размеров + изменение perBox
+    var bodyEl = document.getElementById('spModalBody');
+    if (bodyEl) {
+      bodyEl.addEventListener('change', function(e) {
+        var chk = e.target.closest('[data-sp-size-chk]');
+        if (chk) {
+          var lbl = chk.closest('.sp-size-chk');
+          if (lbl) lbl.classList.toggle('checked', chk.checked);
+          spUpdatePerboxTable();
+        }
+      });
+      bodyEl.addEventListener('input', function(e) {
+        if (e.target && e.target.classList.contains('sp-perbox-input')) {
+          spRecalcTotal();
+        }
+      });
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        var m = document.getElementById('spModal');
+        if (m && !m.classList.contains('hidden')) spCloseModal();
+      }
+    });
+
+    // Первый рендер
+    setTimeout(renderSizeProfilesList, 100);
+  }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') setTimeout(init, 100);
+  else window.addEventListener('DOMContentLoaded', init);
+})();
 
 // Стратегия (отдельный ключ от перераспределения по плану пользователя)
 var DP_STRATEGY_KEY = 'postal_dp_strategy';
