@@ -677,8 +677,13 @@
     grid-template-columns: 1.5fr 1.2fr 0.8fr;
     gap: 12px;
   }
+  /* Когда виден dpProfileWrap — 4 колонки */
+  .dp-input-row:has(#dpProfileWrap:not([style*="display:none"])) {
+    grid-template-columns: 1.3fr 1fr 1.3fr 0.7fr;
+  }
   @media (max-width: 980px) {
-    .dp-input-row { grid-template-columns: 1fr 1fr; }
+    .dp-input-row,
+    .dp-input-row:has(#dpProfileWrap:not([style*="display:none"])) { grid-template-columns: 1fr 1fr; }
   }
   .dp-autocomplete-wrap { position: relative; }
   .dp-ac-menu {
@@ -2109,8 +2114,12 @@ C-340,4,132,12,46.21"></textarea>
             <input id="dpNmId" type="text" inputmode="numeric" autocomplete="off" placeholder="123456789"/>
             <div class="dp-ac-menu hidden" id="dpNmMenu" data-dp-ac-for="nm"></div>
           </div>
+          <div id="dpProfileWrap" style="display:none">
+            <label>Профиль ростовки</label>
+            <select id="dpProfile" class="sp-profile-select"></select>
+          </div>
           <div>
-            <label>Коробок <span class="muted" style="font-size:11px;font-weight:normal">(по 8 пар)</span></label>
+            <label>Коробок <span class="muted" id="dpPairsHint" style="font-size:11px;font-weight:normal">(по 8 пар)</span></label>
             <input id="dpBoxes" type="number" min="1" value="1"/>
           </div>
         </div>
@@ -4958,6 +4967,54 @@ function spApplySelectedProfileToForm() {
   }
 }
 
+// J.4: API для формы «План поставки» (panel-delivery-plan)
+function dpRefreshProfileSelect(nmId, preferredId) {
+  var wrap = document.getElementById('dpProfileWrap');
+  var sel = document.getElementById('dpProfile');
+  if (!wrap || !sel) return null;
+  var profiles = nmId ? getProfilesForArticle(nmId) : [];
+  if (profiles.length <= 1) {
+    // 0 или 1 профиль (только default) → скрываем дропдаун
+    wrap.style.display = 'none';
+    sel.innerHTML = profiles.length ? '<option value="' + profiles[0].id + '">' + profiles[0].name + '</option>' : '';
+    sel.value = profiles.length ? profiles[0].id : '';
+    dpUpdatePairsHint(profiles.length ? profiles[0] : null);
+    return profiles.length ? profiles[0] : null;
+  }
+  wrap.style.display = '';
+  sel.innerHTML = profiles.map(function(p) {
+    var rangeStr = profileSizesShort(p);
+    return '<option value="' + p.id + '">' + p.name + ' (' + rangeStr + ') — ' + p.totalPerBox + ' пар</option>';
+  }).join('');
+  var chosen = null;
+  if (preferredId) chosen = profiles.find(function(p) { return p.id === preferredId; });
+  if (!chosen) chosen = profiles.find(function(p) { return p.isDefault; });
+  if (!chosen) chosen = profiles[0];
+  sel.value = chosen.id;
+  dpUpdatePairsHint(chosen);
+  return chosen;
+}
+
+function dpRefreshProfileSelectFromForm() {
+  var nmEl = document.getElementById('dpNmId');
+  var nm = nmEl ? Number(nmEl.value) : 0;
+  return dpRefreshProfileSelect(nm, null);
+}
+
+function dpGetSelectedProfile() {
+  var sel = document.getElementById('dpProfile');
+  if (!sel || !sel.value) return null;
+  return state.sizeProfiles.find(function(p) { return p.id === sel.value; }) || null;
+}
+
+// Обновить «(по N пар)» подпись у поля Коробок
+function dpUpdatePairsHint(profile) {
+  var hint = document.getElementById('dpPairsHint');
+  if (!hint) return;
+  var perBox = profile ? profile.totalPerBox : DP_PAIRS_PER_BOX;
+  hint.textContent = '(по ' + perBox + ' пар)';
+}
+
 // Заполнить #supProfile <select> профилями артикула; вернуть выбранный профиль
 function spRefreshSupProfileSelect(nmId, preferredId) {
   var wrap = document.getElementById('supProfileWrap');
@@ -5411,10 +5468,12 @@ function renderDpAddedTable() {
       + '<td><div style="display:flex;align-items:center;gap:10px">'
       +   photoHtml
       +   '<div><div style="font-weight:500;font-size:13px">' + (it.vendorCode || '—') + '</div>'
-      +   '<div class="muted" style="font-size:11px;font-family:\'JetBrains Mono\',monospace">' + (it.nmId || '—') + '</div></div>'
+      +   '<div class="muted" style="font-size:11px;font-family:\'JetBrains Mono\',monospace">' + (it.nmId || '—') + '</div>'
+      +   (it.profileName ? '<div style="font-size:11px;color:var(--accent);margin-top:1px">профиль: ' + it.profileName + '</div>' : '')
+      +   '</div>'
       + '</div></td>'
       + '<td class="num">' + it.boxes + '</td>'
-      + '<td class="num"><strong>' + it.total + '</strong></td>'
+      + '<td class="num"><strong>' + it.total + '</strong> <span class="muted" style="font-size:10px">(×' + (it.perBox || DP_PAIRS_PER_BOX) + ')</span></td>'
       + '<td>' + dpStatusPill(statusCls) + '</td>'
       + '<td>' + dpRenderAnalogCell(it) + '</td>'
       + '<td>' + distBtnHtml + '</td>'
@@ -6176,6 +6235,8 @@ function assembleSupplyPlans(selectedItems) {
         perBox: it.perBox,
         boxes: Math.max(1, Math.ceil(r.qty / (it.perBox || 1))),
         okrug: r.okrug,
+        profileId: it.profileId || '',
+        profileName: it.profileName || '',
       });
       byWh[wh].totalQty += r.qty;
     });
@@ -6628,6 +6689,30 @@ function dpRenderAcMenu(menuEl, items) {
       if (nmMenu) nmMenu.classList.add('hidden');
     });
 
+    // J.4: при выборе через автокомплит (data-dp-ac-pick) обновить дропдаун профиля
+    [vcMenu, nmMenu].forEach(function(menu) {
+      if (!menu) return;
+      menu.addEventListener('click', function(e) {
+        if (e.target.closest('[data-dp-ac-pick]')) {
+          setTimeout(function() {
+            if (typeof dpRefreshProfileSelectFromForm === 'function') dpRefreshProfileSelectFromForm();
+          }, 50);
+        }
+      });
+    });
+    // На input в nmId
+    if (nmEl) nmEl.addEventListener('input', function() {
+      setTimeout(function() {
+        if (typeof dpRefreshProfileSelectFromForm === 'function') dpRefreshProfileSelectFromForm();
+      }, 200);
+    });
+    // Изменение профиля → обновление подсказки «(по N пар)»
+    var dpProfileSel = document.getElementById('dpProfile');
+    if (dpProfileSel) dpProfileSel.addEventListener('change', function() {
+      var p = dpGetSelectedProfile();
+      dpUpdatePairsHint(p);
+    });
+
     // Переключатель стратегии
     document.querySelectorAll('.strategy-opt[data-dp-strategy]').forEach(function(btn) {
       btn.addEventListener('click', function() {
@@ -6648,7 +6733,9 @@ function dpRenderAcMenu(menuEl, items) {
       var nmIdRaw = nmEl ? nmEl.value : '';
       var nmId = Number(nmIdRaw);
       var boxes = Number(boxesEl.value) || 0;
-      var perBox = DP_PAIRS_PER_BOX;
+      // J.4: получаем выбранный профиль (если у артикула есть профили)
+      var dpSelectedProfile = (typeof dpGetSelectedProfile === 'function') ? dpGetSelectedProfile() : null;
+      var perBox = dpSelectedProfile ? dpSelectedProfile.totalPerBox : DP_PAIRS_PER_BOX;
       var total = boxes * perBox;
       if (!nmId || !boxes) {
         if (hintEl) { hintEl.textContent = 'Выбери артикул WB и укажи кол-во коробок'; hintEl.style.color = 'var(--danger)'; }
@@ -6668,6 +6755,8 @@ function dpRenderAcMenu(menuEl, items) {
         total: total,
         brand: meta.brand,
         name: meta.name,
+        profileId: dpSelectedProfile ? dpSelectedProfile.id : '',
+        profileName: dpSelectedProfile ? dpSelectedProfile.name : '',
         distribution: dist,
       };
       state.deliveryPlan.push(item);
@@ -6677,6 +6766,7 @@ function dpRenderAcMenu(menuEl, items) {
       if (nmEl) nmEl.value = '';
       if (vcMenu) vcMenu.classList.add('hidden');
       if (nmMenu) nmMenu.classList.add('hidden');
+      if (typeof dpRefreshProfileSelectFromForm === 'function') dpRefreshProfileSelectFromForm();
       if (vcEl) vcEl.focus();
     });
 
@@ -7147,12 +7237,22 @@ function renderRedistTasks(result) {
 
     const tooltipData = `Пр.нед: ${t.lastWeek} → ${t.forecast} | На целев: ${t.currentAtTarget} | КРП: ${kpi.hasArticle ? kpi.oldKrp.toFixed(2)+'%' : '—'}`;
 
+    // J.4: имя профиля по умолчанию (если есть профили для этого nmId)
+    let profileBadge = '';
+    if (typeof getProfilesForArticle === 'function') {
+      const profs = getProfilesForArticle(t.nmId);
+      if (profs.length > 1) {
+        const def = profs.find(p => p.isDefault) || profs[0];
+        profileBadge = `<div style="font-size:10px;color:var(--accent);margin-top:2px">профиль: ${def.name}${profs.length > 1 ? ' (из '+profs.length+')' : ''}</div>`;
+      }
+    }
+
     return `
       <tr title="${tooltipData}">
         <td class="col-sticky col-s0"><input type="checkbox" class="redist-chk" data-idx="${i}"></td>
         <td class="col-sticky col-s1" style="color:var(--text-soft);width:28px">${i + 1}</td>
         <td class="col-sticky col-s2">${priorityBadge(t.gap)}</td>
-        <td>${photoCell(t.nmId)}</td>
+        <td>${photoCell(t.nmId)}${profileBadge}</td>
         <td>${t.fromWh}<div class="muted" style="font-size:11px">остаток ${t.fromStock + t.qty}</div></td>
         <td>${t.toWh}<div class="muted" style="font-size:11px">${t.region}</div></td>
         <td class="num" style="white-space:nowrap">${ilCell}</td>
