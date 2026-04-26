@@ -6476,7 +6476,8 @@ function goToInvoiceForTemplate(tplIdx) {
   setTimeout(function() {
     (tpl.items || []).forEach(function(item) {
       if (typeof window.__addInvRow === 'function') {
-        window.__addInvRow(item.vendorCode || String(item.nmId), item.boxes);
+        // J.4+: передаём profileId — селектор в строке заполнится этим профилем
+        window.__addInvRow(item.vendorCode || String(item.nmId), item.boxes, item.profileId || '');
       }
     });
     // Помечаем шаблон как "накладная открыта" (после фактической обработки меняется на invoiceCreated)
@@ -10252,30 +10253,75 @@ renderProgress();
     if (input) input.value = vc;
     const boxesInput = invDdRow.querySelector('.inv-boxes');
     hideInvDd();
+    // J.4+: обновить дропдаун профиля строки
+    if (typeof updateInvRowProfileSelect === 'function') updateInvRowProfileSelect(invDdRow);
     if (boxesInput) boxesInput.focus();
   }
 
   // --- UI «Накладная» ---
 
-  function addInvRow(article, boxes) {
+  function addInvRow(article, boxes, profileId) {
     const box = $('invRows');
     if (!box) return null;
     const row = document.createElement('div');
     row.className = 'inv-row';
-    row.style.cssText = 'display:grid; grid-template-columns: minmax(0, 320px) 100px 36px; gap:8px; align-items:center; max-width:480px';
+    row.style.cssText = 'display:grid; grid-template-columns: minmax(0, 240px) minmax(0, 220px) 90px 36px; gap:8px; align-items:center; max-width:620px';
     row.innerHTML =
       '<div class="inv-art-wrap" style="position:relative">' +
         '<input type="text" class="inv-art" placeholder="Артикул (например 519-5)" value="' + escHtml(article || '') + '" autocomplete="off" />' +
         '<div class="inv-dd sup-dd-box" style="display:none"></div>' +
       '</div>' +
+      '<select class="inv-profile sp-profile-select" data-pref-id="' + escHtml(profileId || '') + '" style="font-size:12px;padding:8px 10px;display:none"></select>' +
       '<input type="number" class="inv-boxes" placeholder="Коробок" min="1" value="' + escHtml(boxes != null && boxes !== '' ? String(boxes) : '') + '" />' +
       '<button class="btn ghost inv-del" type="button" title="Удалить строку" style="padding:8px 12px">×</button>';
     box.appendChild(row);
+    // Если артикул уже задан — сразу обновить дропдаун профиля
+    if (article) {
+      setTimeout(function() { updateInvRowProfileSelect(row); }, 0);
+    }
     return row;
   }
   // Экспорт для использования из раздела «План поставки»
   window.__addInvRow = addInvRow;
   window.__clearInvoice = clearInvoice;
+
+  // J.4+: для каждой строки накладной — обновить дропдаун профилей по введённому артикулу
+  function updateInvRowProfileSelect(row) {
+    if (!row) return;
+    var artInput = row.querySelector('.inv-art');
+    var profileSel = row.querySelector('.inv-profile');
+    if (!artInput || !profileSel) return;
+    var artText = (artInput.value || '').trim();
+    if (!artText) {
+      profileSel.style.display = 'none';
+      profileSel.innerHTML = '';
+      return;
+    }
+    // Резолвим артикул в vendorCode + nmId (через findBestRostovkaMatch)
+    var match = (typeof findBestRostovkaMatch === 'function') ? findBestRostovkaMatch(artText) : null;
+    if (!match || !match.record) { profileSel.style.display = 'none'; profileSel.innerHTML = ''; return; }
+    var nmId = match.record.nmId;
+    if (!nmId) { profileSel.style.display = 'none'; profileSel.innerHTML = ''; return; }
+    var profiles = (typeof getProfilesForArticle === 'function') ? getProfilesForArticle(nmId) : [];
+    if (profiles.length <= 1) {
+      profileSel.style.display = 'none';
+      profileSel.innerHTML = profiles.length ? '<option value="' + profiles[0].id + '">' + profiles[0].name + '</option>' : '';
+      profileSel.value = profiles.length ? profiles[0].id : '';
+      return;
+    }
+    var preferred = profileSel.dataset.prefId || '';
+    profileSel.style.display = '';
+    profileSel.innerHTML = profiles.map(function(p) {
+      var rangeStr = (typeof profileSizesShort === 'function') ? profileSizesShort(p) : '';
+      return '<option value="' + p.id + '">' + p.name + (rangeStr ? ' (' + rangeStr + ')' : '') + ' — ' + p.totalPerBox + ' пар</option>';
+    }).join('');
+    var chosen = null;
+    if (preferred) chosen = profiles.find(function(p) { return p.id === preferred; });
+    if (!chosen) chosen = profiles.find(function(p) { return p.isDefault; });
+    if (!chosen) chosen = profiles[0];
+    profileSel.value = chosen.id;
+  }
+  window.__updateInvRowProfileSelect = updateInvRowProfileSelect;
 
   function clearInvoice() {
     $('invRows').innerHTML = '';
@@ -10316,7 +10362,11 @@ renderProgress();
         if (baseMatch) lastBase = baseMatch[1];
       }
 
-      rawItems.push({ inputText: artRaw, article: article, boxes: boxes });
+      // J.4+: считываем profileId из selector (если выбран)
+      var profileSel = el.querySelector('.inv-profile');
+      var rowProfileId = (profileSel && profileSel.value) ? profileSel.value : '';
+
+      rawItems.push({ inputText: artRaw, article: article, boxes: boxes, rowProfileId: rowProfileId });
     });
 
     if (!rawItems.length) {
@@ -10349,14 +10399,19 @@ renderProgress();
         continue;
       }
 
-      // J.3: если для nmId есть профили ростовок — используем default
-      // (если их несколько, можно пометить пользователю в результате)
+      // J.3 + J.4+: используем выбранный в строке профиль (если есть),
+      // иначе default. Каждая строка накладной может иметь свой профиль.
       var jProfile = null, jProfilesCount = 0;
       if (typeof spGetProfilesForNmId === 'function' && (found.nmId || nmIdRec)) {
         var profiles = spGetProfilesForNmId(found.nmId || nmIdRec);
         jProfilesCount = profiles.length;
         if (profiles.length) {
-          jProfile = profiles.find(function(p) { return p.isDefault; }) || profiles[0];
+          // Если в строке выбран profileId — используем его
+          if (it.rowProfileId) {
+            jProfile = profiles.find(function(p) { return p.id === it.rowProfileId; });
+          }
+          // fallback: default или первый
+          if (!jProfile) jProfile = profiles.find(function(p) { return p.isDefault; }) || profiles[0];
           // Заменяем размеры на размеры профиля
           found.sizes = jProfile.sizes.map(function(s) {
             return { size: s.size, perBox: s.perBox, barcode: s.barcode || '' };
@@ -10534,6 +10589,9 @@ renderProgress();
       if (!a || !a.classList || !a.classList.contains('inv-art')) {
         hideInvDd();
       }
+      // J.4+: после ввода артикула — обновить дропдаун профиля для этой строки
+      var row = tgt.closest('.inv-row');
+      if (row) updateInvRowProfileSelect(row);
     }, 150);
   });
 
