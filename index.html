@@ -4631,25 +4631,108 @@ function isWideRange(sizes) {
 function spGenId() { return 'sp_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6); }
 
 // Лениво создать «Стандарт» профиль для артикула
+// Встроенные шаблоны ростовок (синхронизировано с SIZE_TEMPLATES в IIFE Поставка).
+// Если набор размеров артикула совпадает с одним — используем как "Стандарт".
+// Если у артикула несколько применимых шаблонов как подмножества — создаём отдельные профили.
+var SP_BUILTIN_TEMPLATES = [
+  { name: '41–46', sizes: ['41','42','43','44','45','46'], map: { '41':1, '42':1, '43':2, '44':2, '45':1, '46':1 } },
+  { name: '41–45', sizes: ['41','42','43','44','45'], map: { '41':1, '42':2, '43':2, '44':2, '45':1 } },
+  { name: '37–41', sizes: ['37','38','39','40','41'], map: { '37':1, '38':2, '39':2, '40':2, '41':1 } },
+  { name: '36–41', sizes: ['36','37','38','39','40','41'], map: { '36':1, '37':1, '38':2, '39':2, '40':1, '41':1 } },
+];
+
+// Найти все шаблоны, размеры которых полностью входят в набор размеров артикула
+function spFindApplicableTemplates(articleSizes) {
+  var artSet = {};
+  articleSizes.forEach(function(s) { artSet[String(s.size).trim()] = true; });
+  return SP_BUILTIN_TEMPLATES.filter(function(tpl) {
+    return tpl.sizes.every(function(sz) { return artSet[sz]; });
+  });
+}
+
+// Построить sizes-массив профиля на основе шаблона + штрихкоды из article
+function spBuildSizesFromTemplate(tpl, article) {
+  return tpl.sizes.map(function(sz) {
+    var src = article.sizes.find(function(s) { return String(s.size).trim() === sz; });
+    return {
+      size: sz,
+      perBox: tpl.map[sz] || 1,
+      barcode: src ? (src.barcode || '') : '',
+    };
+  });
+}
+
 function ensureDefaultProfile(article) {
   var existing = state.sizeProfiles.find(function(p) {
     return String(p.nmId) === String(article.nmId) && p.isDefault === true;
   });
-  if (existing) return existing;
-  var profile = {
-    id: spGenId(),
-    nmId: article.nmId,
-    vendorCode: article.vendorCode || '',
-    name: 'Стандарт',
-    sizes: article.sizes.map(function(s) {
-      return { size: s.size, perBox: 1, barcode: s.barcode || '' };
-    }),
-    totalPerBox: article.sizes.length,
-    isDefault: true,
-    createdAt: Date.now(),
-  };
-  state.sizeProfiles.push(profile);
-  return profile;
+
+  // Применимые шаблоны (могут быть с подмножеством размеров артикула)
+  var applicable = spFindApplicableTemplates(article.sizes);
+  // Точное совпадение: размеров у артикула столько же, сколько в шаблоне
+  var exactMatch = applicable.find(function(tpl) { return tpl.sizes.length === article.sizes.length; });
+
+  // 1) Если default ещё нет — создаём
+  if (!existing) {
+    var profile;
+    if (exactMatch) {
+      // У артикула один размерный ряд = шаблон → Стандарт с perBox из шаблона
+      var tplSizes = spBuildSizesFromTemplate(exactMatch, article);
+      profile = {
+        id: spGenId(),
+        nmId: article.nmId,
+        vendorCode: article.vendorCode || '',
+        name: 'Стандарт ' + exactMatch.name,
+        sizes: tplSizes,
+        totalPerBox: tplSizes.reduce(function(sum, s) { return sum + s.perBox; }, 0),
+        isDefault: true,
+        createdAt: Date.now(),
+        sourceTemplate: exactMatch.name,
+      };
+    } else {
+      // Нет точного шаблона: Стандарт со всеми размерами и perBox=1
+      profile = {
+        id: spGenId(),
+        nmId: article.nmId,
+        vendorCode: article.vendorCode || '',
+        name: 'Стандарт',
+        sizes: article.sizes.map(function(s) {
+          return { size: s.size, perBox: 1, barcode: s.barcode || '' };
+        }),
+        totalPerBox: article.sizes.length,
+        isDefault: true,
+        createdAt: Date.now(),
+      };
+    }
+    state.sizeProfiles.push(profile);
+    existing = profile;
+  }
+
+  // 2) Если у артикула несколько применимых шаблонов И НЕТ точного совпадения
+  //    (= размерный ряд широкий, как 37-45 или 36-46) — создаём дополнительные
+  //    профили под каждый помещающийся шаблон, если их ещё нет.
+  if (!exactMatch && applicable.length > 0) {
+    applicable.forEach(function(tpl) {
+      var alreadyExists = state.sizeProfiles.some(function(p) {
+        return String(p.nmId) === String(article.nmId) && p.sourceTemplate === tpl.name;
+      });
+      if (alreadyExists) return;
+      var tplSizes = spBuildSizesFromTemplate(tpl, article);
+      state.sizeProfiles.push({
+        id: spGenId(),
+        nmId: article.nmId,
+        vendorCode: article.vendorCode || '',
+        name: tpl.name,
+        sizes: tplSizes,
+        totalPerBox: tplSizes.reduce(function(sum, s) { return sum + s.perBox; }, 0),
+        isDefault: false,
+        createdAt: Date.now(),
+        sourceTemplate: tpl.name,
+      });
+    });
+  }
+
+  return existing;
 }
 
 function getProfilesForArticle(nmId) {
@@ -4682,6 +4765,41 @@ function profileSizesShort(p) {
   return p.sizes.map(function(s) { return s.size; }).slice(0, 3).join(', ');
 }
 
+// Одноразовая миграция: апгрейд старых профилей под новые шаблоны
+// (например — был «Стандарт» с perBox=1 на каждый размер, а теперь нашли подходящий шаблон)
+function spMigrateProfilesToTemplates(articles) {
+  var migrationKey = 'postal_size_templates_migrated_v2';
+  if (localStorage.getItem(migrationKey) === '1') return false;
+
+  var changed = false;
+  articles.forEach(function(article) {
+    var applicable = spFindApplicableTemplates(article.sizes);
+    var exactMatch = applicable.find(function(tpl) { return tpl.sizes.length === article.sizes.length; });
+
+    // Если у артикула есть default профиль с perBox=1 на каждый размер И нашёлся точный шаблон —
+    // апгрейдим default до шаблона
+    var defProf = state.sizeProfiles.find(function(p) {
+      return String(p.nmId) === String(article.nmId) && p.isDefault === true;
+    });
+    if (defProf && exactMatch && !defProf.sourceTemplate) {
+      var allOnes = defProf.sizes.every(function(s) { return s.perBox === 1; });
+      if (allOnes) {
+        var tplSizes = spBuildSizesFromTemplate(exactMatch, article);
+        defProf.name = 'Стандарт ' + exactMatch.name;
+        defProf.sizes = tplSizes;
+        defProf.totalPerBox = tplSizes.reduce(function(sum, s) { return sum + s.perBox; }, 0);
+        defProf.sourceTemplate = exactMatch.name;
+        defProf.updatedAt = Date.now();
+        changed = true;
+      }
+    }
+  });
+
+  if (changed) saveSizeProfiles();
+  try { localStorage.setItem(migrationKey, '1'); } catch(e) {}
+  return changed;
+}
+
 // Главный рендер
 function renderSizeProfilesList() {
   var listEl = document.getElementById('spList');
@@ -4699,7 +4817,10 @@ function renderSizeProfilesList() {
   }
   if (emptyEl) emptyEl.style.display = 'none';
 
-  // Лениво создаём «Стандарт» для всех (idempotent)
+  // Одноразовая миграция: старые «Стандарт» с perBox=1 → апгрейд до шаблона если есть точное совпадение
+  spMigrateProfilesToTemplates(articles);
+
+  // Лениво создаём «Стандарт» + дополнительные профили из шаблонов (idempotent)
   var hasNew = false;
   articles.forEach(function(a) {
     var before = state.sizeProfiles.length;
