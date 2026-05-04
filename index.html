@@ -1762,6 +1762,11 @@
     <!-- Блок с проверкой реальных прав токена (появляется после ввода) -->
     <div class="wb-token-check" id="wbTokenCheck" style="display:none"></div>
 
+    <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
+      <button class="btn ghost" id="btnTestToken" type="button" style="font-size:12px;padding:6px 12px">🔍 Проверить токен (тест-запрос)</button>
+      <span id="testTokenStatus" class="muted" style="font-size:12px"></span>
+    </div>
+
     <div class="input-row three" style="margin-top:14px">
       <div>
         <label>Период (дней назад)</label>
@@ -3855,6 +3860,63 @@ document.getElementById('btnManual').addEventListener('click', () => {
 });
 
 document.getElementById('btnSync').addEventListener('click', syncCabinet);
+
+// Тест токена — лёгкий запрос только чтобы проверить 401/200
+(function initBtnTestToken() {
+  var btn = document.getElementById('btnTestToken');
+  if (!btn) return;
+  btn.addEventListener('click', async function() {
+    var statusEl = document.getElementById('testTokenStatus');
+    var setStatus = function(msg, color) {
+      if (statusEl) {
+        statusEl.textContent = msg;
+        statusEl.style.color = color || '';
+      }
+    };
+    var rawToken = document.getElementById('token').value;
+    var token = (typeof sanitizeWbToken === 'function') ? sanitizeWbToken(rawToken) : rawToken.trim();
+    var proxy = document.getElementById('proxyUrl').value.trim();
+    if (!token) { setStatus('Сначала введи токен', 'var(--danger)'); return; }
+    if (token !== rawToken.trim()) {
+      document.getElementById('token').value = token;
+      setStatus('Токен очищен от невидимых символов, повтори тест', 'var(--warn)');
+      return;
+    }
+
+    btn.disabled = true;
+    setStatus('Отправляю тестовый запрос...', 'var(--text-dim)');
+    try {
+      // Лёгкий endpoint — берёт только 1 запись за вчера
+      var dateFrom = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+      var url = 'https://statistics-api.wildberries.ru/api/v1/supplier/orders?dateFrom=' + encodeURIComponent(dateFrom) + '&flag=0';
+      var finalUrl = proxy ? proxy + '?url=' + encodeURIComponent(url) : url;
+      var res = await fetch(finalUrl, { headers: { Authorization: token } });
+      if (res.ok) {
+        var data = await res.json().catch(function() { return null; });
+        var count = Array.isArray(data) ? data.length : '?';
+        setStatus('✓ Токен валиден (получено ' + count + ' заказов за вчера)', 'var(--ok)');
+      } else if (res.status === 401) {
+        setStatus('✗ HTTP 401: токен отозван или невалиден. Создай новый в кабинете WB.', 'var(--danger)');
+      } else if (res.status === 403) {
+        setStatus('✗ HTTP 403: нет прав. Категории Статистика + Контент?', 'var(--danger)');
+      } else if (res.status === 429) {
+        setStatus('✗ HTTP 429: лимит API. Подожди минуту.', 'var(--warn)');
+      } else {
+        var body = await res.text().catch(function(){return '';});
+        setStatus('✗ HTTP ' + res.status + ': ' + body.slice(0, 80), 'var(--danger)');
+      }
+    } catch(e) {
+      var msg = String(e && e.message || e);
+      if (msg.indexOf('Failed to fetch') !== -1 || msg.indexOf('NetworkError') !== -1) {
+        setStatus('✗ Сеть недоступна. Прокси не запущен или CORS блокирует.', 'var(--danger)');
+      } else {
+        setStatus('✗ Ошибка: ' + msg, 'var(--danger)');
+      }
+    } finally {
+      btn.disabled = false;
+    }
+  });
+})();
 
 // Кнопка «Очистить все данные» (сброс localStorage)
 (function initBtnClearAll() {
@@ -7600,7 +7662,8 @@ function isShipmentActive(nmId, fromWh, toWh) {
 /* Глобальный хелпер для API-вызовов вне syncCabinet */
 async function wbApiFetch(url) {
   var cab = (typeof CabinetManager !== 'undefined') ? CabinetManager.active() : null;
-  var token = cab ? (cab.token || '') : '';
+  var rawToken = cab ? (cab.token || '') : '';
+  var token = (typeof sanitizeWbToken === 'function') ? sanitizeWbToken(rawToken) : rawToken.trim();
   var proxy = cab ? (cab.proxy || '') : '';
   if (!token) return null;
   var finalUrl = proxy ? proxy + '?url=' + encodeURIComponent(url) : url;
@@ -8475,15 +8538,31 @@ function relativeTime(ts) {
    Одним кликом тянет заказы и остатки, обрабатывает,
    раздаёт во все вкладки.
    ========================================================= */
+// Агрессивная санитизация токена — удаляем все whitespace и невидимые символы
+function sanitizeWbToken(raw) {
+  if (!raw) return '';
+  // Убираем стандартный whitespace + невидимые: NBSP (\u00A0), zero-width (\u200B-\u200D),
+  // BOM (\uFEFF), word joiner (\u2060), а также любые управляющие символы (< 0x20 кроме перевода строки)
+  return String(raw)
+    .replace(/[\s\u00A0\u200B-\u200D\u2060\uFEFF]/g, '')
+    .replace(/^Bearer\s+/i, '');
+}
+
 async function syncCabinet() {
   const cab = CabinetManager.active();
-  const token = document.getElementById('token').value.trim();
+  const tokenRaw = document.getElementById('token').value;
+  const token = sanitizeWbToken(tokenRaw);
   const proxy = document.getElementById('proxyUrl').value.trim();
   const days = Number(document.getElementById('daysBack').value) || 30;
 
   if (!token) {
     alert('Сначала введи API-токен Wildberries (категории: Статистика + Контент)');
     return;
+  }
+
+  // Если санитизация что-то почистила — обновим input и предупредим пользователя
+  if (token !== tokenRaw.trim()) {
+    document.getElementById('token').value = token;
   }
 
   // Сохраняем токен и прокси в кабинете
@@ -8508,7 +8587,13 @@ async function syncCabinet() {
     const res = await fetch(finalUrl, { headers: { Authorization: token } });
     if (!res.ok) {
       const body = await res.text().catch(() => '');
-      throw new Error('HTTP ' + res.status + ' ' + body.slice(0, 100));
+      // Извлекаем detail из JSON-ошибки WB для показа в логе
+      var detail = '';
+      try {
+        var j = JSON.parse(body);
+        if (j && j.detail) detail = ' — ' + j.detail;
+      } catch(e) {}
+      throw new Error('HTTP ' + res.status + detail + ' ' + body.slice(0, 100));
     }
     return res.json();
   }
@@ -8516,6 +8601,23 @@ async function syncCabinet() {
   try {
     log('Начинаю синхронизацию для кабинета «' + cab.name + '»');
     log('Окно: последние ' + days + ' дней');
+
+    // Диагностика токена
+    var tokParts = token.split('.');
+    log('Токен: длина ' + token.length + ' символов, частей JWT ' + tokParts.length + ' (нужно 3)');
+    if (tokParts.length !== 3) {
+      log('⚠ Токен не похож на JWT (нет 3 частей через точку). Проверь полностью ли скопировал.', 'bad');
+    } else {
+      try {
+        var hd = JSON.parse(atob(tokParts[0].replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(tokParts[0].length / 4) * 4, '=')));
+        var pl = JSON.parse(atob(tokParts[1].replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(tokParts[1].length / 4) * 4, '=')));
+        log('   header.alg=' + hd.alg + ', payload.s=' + pl.s + ', exp=' + new Date((pl.exp || 0) * 1000).toLocaleDateString('ru-RU') + ', sandbox=' + (pl.t === 1 ? 'TEST' : 'PROD'));
+      } catch(e) {
+        log('⚠ Не удалось распарсить JWT: ' + e.message, 'bad');
+      }
+    }
+    if (proxy) log('Прокси: ' + proxy);
+    else log('Прокси не указан — запросы идут напрямую (CORS может блокировать)');
 
     const dateFrom = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString();
 
@@ -8559,12 +8661,27 @@ async function syncCabinet() {
     renderProgress();
   } catch (e) {
     log('✗ Ошибка: ' + e.message, 'bad');
-    if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
-      log('Скорее всего — CORS. Запусти локальный прокси (см. вкладку «Справка»).', 'bad');
+    if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError') || e.message.includes('TypeError')) {
+      log('Скорее всего — CORS или прокси не запущен.', 'bad');
+      log('Чек-лист:', 'bad');
+      log('  1) Прокси запущен? Проверь окно где node proxy.js', 'bad');
+      log('  2) Прокси слушает порт указанный в поле «Прокси для обхода CORS»?', 'bad');
+      log('  3) В консоли браузера (F12) есть ошибка про CORS или ERR_CONNECTION_REFUSED?', 'bad');
     } else if (e.message.includes('401')) {
-      log('Неверный токен или нет прав. Проверь категории токена: Статистика + Контент.', 'bad');
+      log('━━━ Диагностика 401 (Unauthorized) ━━━', 'bad');
+      log('Сервер ответил «Неверный токен или отозван». Проверь по порядку:', 'bad');
+      log('  1) Токен в кабинете WB: Настройки → Доступ к API. Статус "Активен"?', 'bad');
+      log('  2) Категории токена: должны быть Статистика + Контент.', 'bad');
+      log('     В блоке «Ваш токен содержит права» сейчас показывает что есть?', 'bad');
+      log('  3) Скопировал токен ПОЛНОСТЬЮ (длинная строка с двумя точками)?', 'bad');
+      log('     Текущая длина: ' + token.length + ' символов. JWT обычно 200-500.', 'bad');
+      log('  4) ВАЖНО: создал ли НОВЫЙ токен в кабинете, или редактировал старый?', 'bad');
+      log('     WB при изменении категорий обычно создаёт ОТДЕЛЬНЫЙ токен — старый перестаёт работать.', 'bad');
+      log('  5) Не сменил ли пароль аккаунта? Это инвалидирует все токены.', 'bad');
     } else if (e.message.includes('429')) {
       log('Превышен лимит API: 1 запрос в минуту. Подожди минуту и повтори.', 'bad');
+    } else if (e.message.includes('403')) {
+      log('Недостаточно прав. Создай токен с категориями Статистика + Контент.', 'bad');
     }
   } finally {
     btn.disabled = false;
